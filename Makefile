@@ -10,7 +10,6 @@ all:
 	cd compilers/rcc2 && ./build.cmd
 	cp compilers/rcc2/rcc2 builds/rcc2
 	cd utils/Lost86 && make
-	cd utils/LostEFI; make clean; make
 
 install:
 	install -m 755 builds/lc24 /usr/local/bin/
