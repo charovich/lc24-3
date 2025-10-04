@@ -48,6 +48,8 @@ void _cdecl cstart_(uint16_t bootDrive)
     }
     FAT_Close(fd);
 
+    printf("FAT12 TEST End.\nShutdowing...\n");
+
 end:
     for (;;);
 }

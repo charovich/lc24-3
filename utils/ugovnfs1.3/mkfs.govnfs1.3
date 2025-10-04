@@ -1,43 +1,51 @@
 #!/usr/bin/python3
-import sys;
-from random import randint;
+import sys
+import argparse
+from random import randint
 
-diskname = sys.argv[1];
-headersize = 33; # Header (32 bytes+$F7)
-                 #          |
-                 #          \-----------------------------------------\
-                 #                                                    |
-def mkfsdisksize(diskname): #                                         |
-  with open(diskname, "rb") as d: #                                   |
-    return len(d.read()); #                                           |
-                          #                                           |
-def mkfsheader(disk, ds): #                                           v
-  disk.write(b"\x89GOVNFS1.3  ");                                   # Signature (1 byte)
-                                                                    # Filesystem name (11 bytes)
-  for i in range(4): disk.write(bytes((randint(0,255),)));          # Serial number (4 bytes)
-  disk.write(bytes((ds%256,)));                                     # Disk size in sectors (1 byte)
-  dl = input("Drive letter: ").encode()[0];                         # Disk letter (1 byte)
-  if (dl not in range(65, 91)): dl = 0x41;                          # and....
-  disk.write(bytes((dl,)));                                         # AAAAAAAAAAND
-  disk.write(bytes(14));                                            # Reserved (14 bytes)
-  disk.write(bytes((0xF7,)));                                       # Disk end signature
-  return 0;
+headersize = 33  # Header (32 bytes + F7)
+
+def mkfsdisksize(diskname):
+    with open(diskname, "rb") as d:
+        return len(d.read())
+
+def mkfsheader(disk, ds, drive_letter):
+    disk.write(b"\x89GOVNFS1.3  ")  # Signature (1 byte + 11 bytes for name)
+    for _ in range(4):
+        disk.write(bytes((randint(0, 255),)))  # Serial number (4 bytes)
+    disk.write(bytes((ds % 256,)))  # Disk size in sectors (1 byte)
+    # Use drive_letter argument
+    dl = drive_letter
+    if not (65 <= dl <= 90):  # Check if uppercase ASCII letter
+        dl = 0x41  # Default to 'A'
+    disk.write(bytes((dl,)))  # Disk letter (1 byte)
+    disk.write(bytes(14))     # Reserved (14 bytes)
+    disk.write(bytes((0xF7,)))  # Disk end signature
+    return 0
 
 def mkfsfill(disk, ds):
-  disk.write(bytes(ds-headersize));
-  return 0;
+    disk.write(bytes(ds - headersize))
+    return 0
 
-def mkfsmain(diskname):
-  print("mkfs.govnfs 1.3");
-  ds = mkfsdisksize(diskname);
-  disk = open(diskname, "wb");
+def mkfsmain():
+    parser = argparse.ArgumentParser(description='Create a GOVNFS disk image.')
+    parser.add_argument('diskname', help='Name of the disk image file')
+    parser.add_argument('-n', '--letter', type=str, default='A', help='Drive letter (default: A)')
+    args = parser.parse_args()
 
-  print(f"blocks read: {ds//512}");
-  mkfsheader(disk, ds//512);
-  mkfsfill(disk, ds);
-  print(f"blocks written: {ds//512}");
-  disk.close();
-  return 0;
+    diskname = args.diskname
+    drive_letter_str = args.letter.upper()
+    # Take first character of the drive letter argument
+    drive_letter = ord(drive_letter_str[0]) if drive_letter_str else 65  # Default 'A'
 
-mkfsmain(diskname);
+    print("mkfs.govnfs 1.3")
+    ds = mkfsdisksize(diskname)
+    disk = open(diskname, "wb")
+    print(f"blocks read: {ds // 512}")
+    mkfsheader(disk, ds // 512, drive_letter)
+    mkfsfill(disk, ds)
+    print(f"blocks written: {ds // 512}")
+    disk.close()
 
+if __name__ == "__main__":
+    mkfsmain()
