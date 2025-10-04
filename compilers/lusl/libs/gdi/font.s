@@ -1,6 +1,6 @@
 res:
 .underline: bytes $00 $00 $00 $00 $00 $00 $00 $FF
-;.font: extern "libs/gdi/fonts/unscii5x7.gf1"
+.font: extern "libs/gdi/fonts/unscii5x7.gf1"
 .fontas10: extern "libs/gdi/fonts/ArkSans10.gf2"
 .fontas12: extern "libs/gdi/fonts/ArkSans12.gf2"
 .fontas16: extern "libs/gdi/fonts/ArkSans16.gf2"

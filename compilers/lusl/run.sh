@@ -73,10 +73,10 @@ gpy-run() {
             env SDL_VIDEODRIVER=no $LOST/builds/lc24 progs/compiled/$module.bin || crash $?
             ;;
         gui)
-            GALLIUM_HUD=fps $LOST/builds/lc24 progs/compiled/$module.bin || crash $?
+            $LOST/builds/lc24 progs/compiled/$module.bin || crash $?
             ;;
         bench)
-            time printf "help\ndir\nfib\n27\nexit\n" | env SDL_VIDEODRIVER=no $LOST/builds/lc24 progs/compiled/$module.bin
+            time printf "help\ndir\nexit\n" | env SDL_VIDEODRIVER=no $LOST/builds/lc24 progs/compiled/$module.bin
             ;;
     esac
 }

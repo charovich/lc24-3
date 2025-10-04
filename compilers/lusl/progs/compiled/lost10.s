@@ -247,6 +247,19 @@ vputs: ; (x,y,c,t)
     psh %bp
 ret
 
+vputs5: ; (x,y,c,t)
+    pop %bp
+    pop %di
+    pop %ac
+    pop %dc
+    pop %dt
+    mul %dc 640
+    add %dt %dc
+    jsr vputs5-
+    psh %dc
+    psh %bp
+ret
+
 vputs8: ; (x,y,c,t)
     pop %bp
     pop %di
@@ -497,6 +510,68 @@ jmp .line
     ldd %dt
     pop %dt
 ret
+
+vputs5-: ; G: char
+    psh %dt
+.line:
+    psh %di
+    lodgb
+    cmp %di 0
+    jme .end
+    cmp %di 10
+    jme .ln
+    cmp %di 27
+    jme .undr
+    cmp %di $D0
+    jme .gu8_d0
+    cmp %di $D1
+    jme .gu8_d1
+    sub %di $20
+.pchar:
+    mul %di 9
+    ldd res.font
+    add %di %dc
+    jsr spr-
+    ldd *%di
+    sub %dt 5120
+    ;add %dt %dc
+    add %dt 6
+    pop %di
+    inx %di
+jmp .line
+.gu8_d0:
+    pop %di
+    inx %di
+    psh %di
+    lodgb
+    sub %di $20
+jmp .pchar
+.gu8_d1:
+    pop %di
+    inx %di
+    psh %di
+    lodgb
+    add %di $20 ; $40 - $20
+jmp .pchar
+.ln:
+    pop %di
+    pop %dt
+    add %dt 5120
+    inx %di
+jmp vputs5-
+.undr:
+    ldi res.underline
+    jsr spr-
+    sub %dt 5120
+    pop %di
+    inx %di
+jmp .line
+.end:
+    pop %di
+    ldd %dt
+    pop %dt
+ret
+
 
 vputs8-: ; G: char
     psh %dt
@@ -908,6 +983,8 @@ ret
 
 ; Gravno Display Interface 16
 cls-: ; A: color
+    mov %dt $450000
+    sb %dt %ac
     int $12
 ret
 box-: ; A: color, B: width, D: height, S: start
@@ -1011,7 +1088,7 @@ ret
 ; libs/gdi/font.s
 res:
 .underline: bytes $00 $00 $00 $00 $00 $00 $00 $FF
-;.font: extern "libs/gdi/fonts/unscii5x7.gf1"
+.font: extern "libs/gdi/fonts/unscii5x7.gf1"
 .fontas10: extern "libs/gdi/fonts/ArkSans10.gf2"
 .fontas12: extern "libs/gdi/fonts/ArkSans12.gf2"
 .fontas16: extern "libs/gdi/fonts/ArkSans16.gf2"
@@ -1492,7 +1569,7 @@ notify:
   psh %dc
   psh %ac
   ret
-i3:
+govnweb:
   mov %bp 6
   sub %sp %bp
   mov %bp %sp
@@ -1659,196 +1736,18 @@ i3:
   call vputs8t
   pop %ac
   pop %bp
-  psh 0
-.ret:
-  pop %dc
-  mov %ac 6
-  add %sp %ac
-  pop %ac
-  mov %bp 6
-  add %sp %bp
-  psh %dc
-  psh %ac
-  ret
-govnweb:
-  mov %bp 6
-  sub %sp %bp
-  mov %bp %sp
-  inx %bp
   psh %bp
-  mov %dt 12
+  mov %dt 3
   add %dt %bp
   lh %dt %ac
   psh %ac
-  mov %dt 9
+  mov %dt 0
   add %dt %bp
   lh %dt %ac
+  add %ac 8
   psh %ac
-  psh 340
-  psh 190
+  psh 15
   mov %ac str12
-  psh %ac
-  call window
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 12
-  add %dt %bp
-  lh %dt %ac
-  add %ac 2
-  psh %ac
-  mov %dt 9
-  add %dt %bp
-  lh %dt %ac
-  add %ac 1
-  psh %ac
-  psh 13
-  mov %ac gweb2_mini
-  psh %ac
-  call gic
-  pop %ac
-  pop %bp
-  mov %dt 12
-  add %dt %bp
-  lh %dt %ac
-  add %ac 1
-  mov %dt 3
-  add %dt %bp
-  storw %ac
-  mov %dt 9
-  add %dt %bp
-  lh %dt %ac
-  add %ac 17
-  mov %dt 0
-  add %dt %bp
-  storw %ac
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  psh 8
-  psh 8
-  psh 6
-  call box
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  psh 15
-  mov %ac str13
-  psh %ac
-  call vputs8t
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  add %ac 8
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  psh 8
-  psh 8
-  psh 8
-  call box
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  add %ac 8
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  psh 7
-  mov %ac str14
-  psh %ac
-  call vputs8t
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  add %ac 16
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  mov %ac 340
-  sub %ac 16
-  psh %ac
-  psh 8
-  psh 0
-  call box
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  add %ac 8
-  psh %ac
-  psh 340
-  psh 8
-  psh 12
-  call box
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  add %ac 340
-  mov %bs 8
-  mul %bs 24
-  sub %ac %bs
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  psh 15
-  mov %ac str15
-  psh %ac
-  call vputs8t
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  add %ac 8
-  psh %ac
-  psh 15
-  mov %ac str16
   psh %ac
   call vputs8t
   pop %ac
@@ -1882,7 +1781,7 @@ govnweb:
   add %ac 16
   psh %ac
   psh 0
-  mov %ac str17
+  mov %ac str13
   psh %ac
   call vputs8t
   pop %ac
@@ -1901,7 +1800,7 @@ govnweb:
   add %ac 16
   psh %ac
   psh 8
-  mov %ac str18
+  mov %ac str14
   psh %ac
   call vputs8t
   pop %ac
@@ -1956,7 +1855,7 @@ govnweb:
   add %ac 24
   psh %ac
   psh 0
-  mov %ac str19
+  mov %ac str15
   psh %ac
   call vputs8t
   pop %ac
@@ -1975,7 +1874,7 @@ govnweb:
   add %ac 24
   psh %ac
   psh 8
-  mov %ac str20
+  mov %ac str16
   psh %ac
   call vputs8t
   pop %ac
@@ -2015,7 +1914,7 @@ govnweb:
   add %ac 32
   psh %ac
   psh 0
-  mov %ac str21
+  mov %ac str17
   psh %ac
   call vputs16
   pop %ac
@@ -2031,7 +1930,7 @@ govnweb:
   add %ac 48
   psh %ac
   psh 8
-  mov %ac str22
+  mov %ac str18
   psh %ac
   call vputsas16
   pop %ac
@@ -2047,7 +1946,7 @@ govnweb:
   add %ac 64
   psh %ac
   psh 0
-  mov %ac str23
+  mov %ac str19
   psh %ac
   call vputs8t
   pop %ac
@@ -2253,7 +2152,7 @@ window:
   add %ac 1
   psh %ac
   psh 0
-  mov %ac str24
+  mov %ac str20
   psh %ac
   call vputs
   pop %ac
@@ -2396,7 +2295,7 @@ task:
   add %ac 8
   psh %ac
   psh 15
-  mov %ac str25
+  mov %ac str21
   psh %ac
   call vputs
   pop %ac
@@ -2455,7 +2354,7 @@ task:
   add %ac 8
   psh %ac
   psh 15
-  mov %ac str26
+  mov %ac str22
   psh %ac
   call vputs
   pop %ac
@@ -2514,7 +2413,7 @@ task:
   add %ac 8
   psh %ac
   psh 15
-  mov %ac str27
+  mov %ac str23
   psh %ac
   call vputs
   pop %ac
@@ -2580,32 +2479,20 @@ draw_mouse:
   psh %ac
   ret
 main:
-  mov %bp 12
+  mov %bp 3
   sub %sp %bp
   mov %bp %sp
   inx %bp
   mov %ac 1
-  mov %dt 9
+  mov %dt 0
   add %dt %bp
   storw %ac
   psh %bp
   call load_pal
   pop %ac
   pop %bp
-  mov %ac 0
-  mov %dt 6
-  add %dt %bp
-  storw %ac
-  mov %ac 0
-  mov %dt 3
-  add %dt %bp
-  storw %ac
-  mov %ac 0
-  mov %dt 0
-  add %dt %bp
-  storw %ac
 .loop1:
-  mov %dt 9
+  mov %dt 0
   add %dt %bp
   lh %dt %ac
   cmp %ac 0
@@ -2640,7 +2527,7 @@ main:
   sub %ac 29
   psh %ac
   psh 15
-  mov %ac str28
+  mov %ac str24
   psh %ac
   call vputs
   pop %ac
@@ -2655,7 +2542,7 @@ main:
   sub %ac 16
   psh %ac
   psh 15
-  mov %ac str29
+  mov %ac str25
   psh %ac
   call vputs
   pop %ac
@@ -2666,7 +2553,7 @@ main:
   add %ac 32
   psh %ac
   psh 15
-  mov %ac str30
+  mov %ac str26
   psh %ac
   call vputs
   pop %ac
@@ -2689,7 +2576,7 @@ main:
   add %ac 48
   psh %ac
   psh 15
-  mov %ac str31
+  mov %ac str27
   psh %ac
   call vputs
   pop %ac
@@ -2709,29 +2596,26 @@ main:
   pop %bp
   psh %bp
   psh 0
-  mov %dt 6
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
+  psh 1
   call task
   pop %ac
   pop %bp
   psh %bp
   psh 1
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
+  psh 0
   call task
   pop %ac
   pop %bp
   psh %bp
   psh 2
-  mov %dt 0
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
+  psh 0
   call task
+  pop %ac
+  pop %bp
+  psh %bp
+  psh 160
+  psh 8
+  call govnweb
   pop %ac
   pop %bp
   psh %bp
@@ -2748,48 +2632,6 @@ main:
   pop %ac
   pop %bp
   psh %bp
-  mov %ac str32
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  psh %bp
-  call getx
-  pop %ac
-  pop %bp
-  psh %ac
-  call puti
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str33
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str34
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  psh %bp
-  call gety
-  pop %ac
-  pop %bp
-  psh %ac
-  call puti
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str35
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
   call draw_mouse
   pop %ac
   pop %bp
@@ -2798,7 +2640,7 @@ main:
   psh 0
 .ret:
   pop %dc
-  mov %ac 12
+  mov %ac 3
   add %sp %ac
   pop %ac
   mov %bp 0
@@ -2810,35 +2652,27 @@ str0: bytes "GovnDate by Ксэ816^@"
 str1: bytes "С инкрементацией!^@"
 str2: bytes "^$ diff gd.old gd.new^@"
 str3: bytes "1c1^@"
-str4: bytes "< GovnDate=28439^@"
+str4: bytes "< GovnDate=28445^@"
 str5: bytes "---^@"
-str6: bytes "> GovnDate=28440^@"
+str6: bytes "> GovnDate=28446^@"
 str7: bytes "Скотчать^@"
-str8: bytes "Virtual Box(Arch Linux, I3wm)^@"
+str8: bytes "GovnWeb 2 (Alpha)^@"
 str9: bytes "1^@"
 str10: bytes "2^@"
-str11: bytes "  100kg/16MiB|09-24-2025^@"
-str12: bytes "GovnWeb 2 (Alpha)^@"
-str13: bytes "1^@"
-str14: bytes "2^@"
-str15: bytes "  100kg/32MiB|08-23-2025^@"
-str16: bytes "GovnWeb 2^@"
-str17: bytes "Gnkui^@"
-str18: bytes "x^@"
-str19: bytes "gnkui.github.io^@"
-str20: bytes "/^@"
-str21: bytes "Фанфик про шлюкси^@"
-str22: bytes "Персонажи: Люкси и Гнкуи^@"
-str23: bytes "Часть 1$Пасмурдный день апреля, Гнкуи спокойно спа$ла. Но вдруг телефон завибрировал.Гнкуи н$ехотя поднялась с кровати, и проверила тел$ефон. Это был Люксидев. Гнкуи пробормотала$ под нос. -И чего ему надо. В сообщении го$ворилось.-Привет.Не хочешь прогулятся?.Гн$куи насупилась и напечатала.-Извини за воп$рос.Но зачем писать в такую рань? Не долго$думая, Люксидев ответил.-Как можно так до$лго спать.Здоровые люди уже на ногах, а ты$спишь.Гнкуи не предала значения его словам,$и быстро ответила.-Ладно, говори во скольк$о.Люксидев быстро написал.-9:00, я буду жд$ать около твоего дома.Гнкуи посмотрела на$часы.8:40.^@"
-str24: bytes "- O X^@"
-str25: bytes "GovnWeb 2^@"
-str26: bytes "Рика Фуруде - MAX^@"
-str27: bytes "ПО `мой пк`^@"
-str28: bytes "00:00:00^@"
-str29: bytes "09.25.25^@"
-str30: bytes "GovnWeb2^@"
-str31: bytes "VKontakte^@"
-str32: bytes "X:^@"
-str33: bytes "$^@"
-str34: bytes "Y:^@"
-str35: bytes "$^@"
+str11: bytes "  100kg/32MiB|08-23-2025^@"
+str12: bytes "GovnWeb 2^@"
+str13: bytes "Gnkui^@"
+str14: bytes "x^@"
+str15: bytes "gnkui.github.io^@"
+str16: bytes "/^@"
+str17: bytes "Фанфик про шлюкси^@"
+str18: bytes "Персонажи: Люкси и Гнкуи^@"
+str19: bytes "Часть 1$Пасмурдный день апреля, Гнкуи спокойно спа$ла. Но вдруг телефон завибрировал.Гнкуи н$ехотя поднялась с кровати, и проверила тел$ефон. Это был Люксидев. Гнкуи пробормотала$ под нос. -И чего ему надо. В сообщении го$ворилось.-Привет.Не хочешь прогулятся?.Гн$куи насупилась и напечатала.-Извини за воп$рос.Но зачем писать в такую рань? Не долго$думая, Люксидев ответил.-Как можно так до$лго спать.Здоровые люди уже на ногах, а ты$спишь.Гнкуи не предала значения его словам,$и быстро ответила.-Ладно, говори во скольк$о.Люксидев быстро написал.-9:00, я буду жд$ать около твоего дома.Гнкуи посмотрела на$часы.8:40.^@"
+str20: bytes "- O X^@"
+str21: bytes "GovnWeb 2^@"
+str22: bytes "Рика Фуруде - MAX^@"
+str23: bytes "ПО `мой пк`^@"
+str24: bytes "00:00:00^@"
+str25: bytes "09.25.25^@"
+str26: bytes "GovnWeb2^@"
+str27: bytes "VKontakte^@"

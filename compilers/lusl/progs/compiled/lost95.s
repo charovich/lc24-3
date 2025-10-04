@@ -247,6 +247,19 @@ vputs: ; (x,y,c,t)
     psh %bp
 ret
 
+vputs5: ; (x,y,c,t)
+    pop %bp
+    pop %di
+    pop %ac
+    pop %dc
+    pop %dt
+    mul %dc 640
+    add %dt %dc
+    jsr vputs5-
+    psh %dc
+    psh %bp
+ret
+
 vputs8: ; (x,y,c,t)
     pop %bp
     pop %di
@@ -497,6 +510,68 @@ jmp .line
     ldd %dt
     pop %dt
 ret
+
+vputs5-: ; G: char
+    psh %dt
+.line:
+    psh %di
+    lodgb
+    cmp %di 0
+    jme .end
+    cmp %di 10
+    jme .ln
+    cmp %di 27
+    jme .undr
+    cmp %di $D0
+    jme .gu8_d0
+    cmp %di $D1
+    jme .gu8_d1
+    sub %di $20
+.pchar:
+    mul %di 9
+    ldd res.font
+    add %di %dc
+    jsr spr-
+    ldd *%di
+    sub %dt 5120
+    ;add %dt %dc
+    add %dt 6
+    pop %di
+    inx %di
+jmp .line
+.gu8_d0:
+    pop %di
+    inx %di
+    psh %di
+    lodgb
+    sub %di $20
+jmp .pchar
+.gu8_d1:
+    pop %di
+    inx %di
+    psh %di
+    lodgb
+    add %di $20 ; $40 - $20
+jmp .pchar
+.ln:
+    pop %di
+    pop %dt
+    add %dt 5120
+    inx %di
+jmp vputs5-
+.undr:
+    ldi res.underline
+    jsr spr-
+    sub %dt 5120
+    pop %di
+    inx %di
+jmp .line
+.end:
+    pop %di
+    ldd %dt
+    pop %dt
+ret
+
 
 vputs8-: ; G: char
     psh %dt
@@ -908,6 +983,8 @@ ret
 
 ; Gravno Display Interface 16
 cls-: ; A: color
+    mov %dt $450000
+    sb %dt %ac
     int $12
 ret
 box-: ; A: color, B: width, D: height, S: start
@@ -1011,7 +1088,7 @@ ret
 ; libs/gdi/font.s
 res:
 .underline: bytes $00 $00 $00 $00 $00 $00 $00 $FF
-;.font: extern "libs/gdi/fonts/unscii5x7.gf1"
+.font: extern "libs/gdi/fonts/unscii5x7.gf1"
 .fontas10: extern "libs/gdi/fonts/ArkSans10.gf2"
 .fontas12: extern "libs/gdi/fonts/ArkSans12.gf2"
 .fontas16: extern "libs/gdi/fonts/ArkSans16.gf2"
@@ -1292,7 +1369,7 @@ window:
   add %dt %bp
   lh %dt %ac
   psh %ac
-  call vputs8t
+  call vputs5
   pop %ac
   pop %bp
   psh %bp
@@ -1362,7 +1439,7 @@ window:
   psh 0
   mov %ac MINIMIZE_SPR
   psh %ac
-  call spr
+  call spr16
   pop %ac
   pop %bp
   psh %bp
@@ -1409,7 +1486,7 @@ window:
   psh 0
   mov %ac MAXIMIZE_SPR
   psh %ac
-  call spr
+  call spr16
   pop %ac
   pop %bp
   psh %bp
@@ -1479,7 +1556,7 @@ window:
   psh 0
   mov %ac CLOSE_SPR
   psh %ac
-  call spr
+  call spr16
   pop %ac
   pop %bp
   psh 0
@@ -1494,191 +1571,99 @@ window:
   psh %ac
   ret
 main:
-  mov %bp 12
+  mov %bp 6
   sub %sp %bp
   mov %bp %sp
   inx %bp
   mov %ac 1
-  mov %dt 9
+  mov %dt 3
   add %dt %bp
   storw %ac
-.loop1:
-  mov %dt 9
-  add %dt %bp
-  lh %dt %ac
-  cmp %ac 0
-  jme .loopend1
   psh %bp
   psh 36
   call cls
   pop %ac
   pop %bp
+  mov %ac 1
+  mov %dt 0
+  add %dt %bp
+  storw %ac
+.loop1:
+  mov %dt 0
+  add %dt %bp
+  lh %dt %ac
+  mov %bs 10
+  cmp %ac %bs
+  mov %ac 0
+  jme .notone1
+  mov %ac 1
+.notone1:
+  cmp %ac 0
+  jme .loopend1
   psh %bp
-  psh 10
-  psh 5
-  psh 360
+  mov %ac 10
+  mov %dt 0
+  add %dt %bp
+  xchg %ac %bs
+  lh %dt %ac
+  xchg %ac %bs
+  mul %ac %bs
+  psh %ac
+  mov %ac 5
+  mov %dt 0
+  add %dt %bp
+  xchg %ac %bs
+  lh %dt %ac
+  xchg %ac %bs
+  mul %ac %bs
+  psh %ac
   psh 100
-  psh 9
+  psh 100
+  mov %dt 0
+  add %dt %bp
+  lh %dt %ac
+  mov %bs 9
+  cmp %ac %bs
+  mov %ac 0
+  jmne .notone2
+  mov %ac 1
+.notone2:
+  psh %ac
   mov %ac str0
   psh %ac
   call window
   pop %ac
   pop %bp
-  psh %bp
-  psh 10
-  psh 18
-  psh 0
-  mov %ac str1
-  psh %ac
-  call vputs8t
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str2
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  psh %bp
-  call getx
-  pop %ac
-  pop %bp
-  psh %ac
-  call puti
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str3
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str4
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  psh %bp
-  call gety
-  pop %ac
-  pop %bp
-  psh %ac
-  call puti
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str5
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str6
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  psh %bp
-  psh %bp
-  call getm
-  pop %ac
-  pop %bp
-  psh %ac
-  call puti
-  pop %ac
-  pop %bp
-  psh %bp
-  mov %ac str7
-  psh %ac
-  call puts
-  pop %ac
-  pop %bp
-  mov %ac 360
-  mov %dt 6
-  add %dt %bp
-  storw %ac
-  mov %ac 7
-  mov %dt 3
-  add %dt %bp
-  storw %ac
-  mov %ac 2
-  mov %dt 0
-  add %dt %bp
-  storw %ac
-  psh %bp
-  psh %bp
-  call getx
-  pop %ac
-  pop %bp
-  psh %ac
-  mov %dt 6
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  call scmp
-  pop %ac
-  pop %bp
-  cmp %ac 0
-  jme .ifnot1
-  psh %bp
-  psh %bp
-  call gety
-  pop %ac
-  pop %bp
-  psh %ac
-  mov %dt 3
-  add %dt %bp
-  lh %dt %ac
-  psh %ac
-  call scmp
-  pop %ac
-  pop %bp
-  cmp %ac 0
-  jme .ifnot2
-  psh %bp
-  psh %bp
-  call getm
-  pop %ac
-  pop %bp
-  psh %ac
   mov %dt 0
   add %dt %bp
   lh %dt %ac
-  psh %ac
-  call scmp
-  pop %ac
-  pop %bp
-  cmp %ac 0
-  jme .ifnot3
-  int $12
-  lda $69
-  trap
-  jmp .ifend3
-.ifnot3:
-.ifend3:
-  jmp .ifend2
-.ifnot2:
-.ifend2:
-  jmp .ifend1
-.ifnot1:
-.ifend1:
-  psh %bp
-  call draw_mouse
-  pop %ac
-  pop %bp
+  add %ac 1
+  mov %dt 0
+  add %dt %bp
+  storw %ac
+  jmp .loop1
+.loopend1:
   psh %bp
   call vflush
   pop %ac
   pop %bp
-  jmp .loop1
-.loopend1:
+.loop2:
+  mov %dt 3
+  add %dt %bp
+  lh %dt %ac
+  cmp %ac 0
+  jme .loopend2
+  psh %bp
+  psh 1
+  call msleep
+  pop %ac
+  pop %bp
+  jmp .loop2
+.loopend2:
   psh 0
 .ret:
   pop %dc
-  mov %ac 12
+  mov %ac 6
   add %sp %ac
   pop %ac
   mov %bp 0
@@ -1687,10 +1672,3 @@ main:
   psh %ac
   ret
 str0: bytes "Explorer^@"
-str1: bytes "BILL GATES WANTED GNU/LINUX$HERE'S YOUR :fig:$HA:abaudna:$GNU/LINUX MOTHERLAND:abaudna::fig:$ROTTEN WINDOWS WILL SOON DIE:fig:$OUR LINUX-OID SPIRIT CANNOT BE BROKEN:strong:$MICROSOFT WILL BE OURS :ura:^@"
-str2: bytes "X:^@"
-str3: bytes "$^@"
-str4: bytes "Y:^@"
-str5: bytes "$^@"
-str6: bytes "Clicked:^@"
-str7: bytes "$^@"

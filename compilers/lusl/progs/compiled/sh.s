@@ -247,6 +247,19 @@ vputs: ; (x,y,c,t)
     psh %bp
 ret
 
+vputs5: ; (x,y,c,t)
+    pop %bp
+    pop %di
+    pop %ac
+    pop %dc
+    pop %dt
+    mul %dc 640
+    add %dt %dc
+    jsr vputs5-
+    psh %dc
+    psh %bp
+ret
+
 vputs8: ; (x,y,c,t)
     pop %bp
     pop %di
@@ -497,6 +510,68 @@ jmp .line
     ldd %dt
     pop %dt
 ret
+
+vputs5-: ; G: char
+    psh %dt
+.line:
+    psh %di
+    lodgb
+    cmp %di 0
+    jme .end
+    cmp %di 10
+    jme .ln
+    cmp %di 27
+    jme .undr
+    cmp %di $D0
+    jme .gu8_d0
+    cmp %di $D1
+    jme .gu8_d1
+    sub %di $20
+.pchar:
+    mul %di 9
+    ldd res.font
+    add %di %dc
+    jsr spr-
+    ldd *%di
+    sub %dt 5120
+    ;add %dt %dc
+    add %dt 6
+    pop %di
+    inx %di
+jmp .line
+.gu8_d0:
+    pop %di
+    inx %di
+    psh %di
+    lodgb
+    sub %di $20
+jmp .pchar
+.gu8_d1:
+    pop %di
+    inx %di
+    psh %di
+    lodgb
+    add %di $20 ; $40 - $20
+jmp .pchar
+.ln:
+    pop %di
+    pop %dt
+    add %dt 5120
+    inx %di
+jmp vputs5-
+.undr:
+    ldi res.underline
+    jsr spr-
+    sub %dt 5120
+    pop %di
+    inx %di
+jmp .line
+.end:
+    pop %di
+    ldd %dt
+    pop %dt
+ret
+
 
 vputs8-: ; G: char
     psh %dt
@@ -908,6 +983,8 @@ ret
 
 ; Gravno Display Interface 16
 cls-: ; A: color
+    mov %dt $450000
+    sb %dt %ac
     int $12
 ret
 box-: ; A: color, B: width, D: height, S: start
@@ -1011,7 +1088,7 @@ ret
 ; libs/gdi/font.s
 res:
 .underline: bytes $00 $00 $00 $00 $00 $00 $00 $FF
-;.font: extern "libs/gdi/fonts/unscii5x7.gf1"
+.font: extern "libs/gdi/fonts/unscii5x7.gf1"
 .fontas10: extern "libs/gdi/fonts/ArkSans10.gf2"
 .fontas12: extern "libs/gdi/fonts/ArkSans12.gf2"
 .fontas16: extern "libs/gdi/fonts/ArkSans16.gf2"

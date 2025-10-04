@@ -104,6 +104,7 @@ U8 main(I32 argc, I8** argv) {
         {.name = "puti", .code = "pop %di pop %ac mov %bs 10000000 .loop: div %ac %bs add %ac '0' push %ac int 2 mov %ac %dc div %bs 10 cmp %dc 1 jmne .loop push 0 push %di ret"},
         {.name = "flip", .code = "pop %ac int $11 push 0 push %ac ret"},
         {.name = "cls", .code = "pop %ac int $12 push 0 push %ac ret"},
+        {.name = "exit", .code = "int $0"},
     };
     for (U8 i = 0; i < sizeof(nfs) / sizeof(nfs[0]); i++) {
         printf("%s: %s\n", nfs[i].name, nfs[i].code);

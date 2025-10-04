@@ -34,12 +34,12 @@ LETEXT = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy0123456789z-_.";
 DIG    = "0123456789";
 WHI    = " \r\0\t";
 DIGEXT = "0123456789ABCDEF";
-KEY2   = ['dex', 'loop', 'ledib', 're', 'cli', 'xchg', 'lddg', 'lodgb', 'ldds', 'ldib', 'rne', 'mul', 'sti', 'add', 'jmp', 'mov', 'stosb', 'call', 'lodsb', 'ldtb', 'div', 'cmp', 'clc', 'laf', 'lodsw', 'jme', 'stdg', 'inx', 'int', 'ret', 'iret', 'jl', 'stosw', 'ledtb', 'jg', 'str', 'sub', 'hlt', 'trap', 'or', 'rc', 'and', 'stgrb', 'cop', 'push', 'stds', 'pow', 'lfa', 'storb', 'nop', 'pop', 'cpuid', 'storw', 'stogb', 'jmne', 'sb', 'sw', 'sh', 'lb', 'lw', 'lh', 'cif', 'cfi', 'addf24', 'subf24', 'mulf24', 'divf24', 'negf24', 'powf24', 'xor', 'lobh'];
+KEY2   = ['dex', 'loop', 'ledib', 're', 'cli', 'xchg', 'lddg', 'lodgb', 'ldds', 'ldib', 'rne', 'mul', 'sti', 'add', 'jmp', 'mov', 'stosb', 'call', 'lodsb', 'ldtb', 'div', 'cmp', 'clc', 'laf', 'lodsw', 'jme', 'stdg', 'inx', 'int', 'ret', 'iret', 'jl', 'stosw', 'ledtb', 'jg', 'str', 'sub', 'hlt', 'trap', 'or', 'rc', 'and', 'stgrb', 'cop', 'push', 'stds', 'pow', 'lfa', 'storb', 'nop', 'pop', 'cpuid', 'storw', 'stogb', 'jmne', 'sb', 'sw', 'sh', 'lb', 'lw', 'lh', 'cif', 'cfi', 'addf24', 'subf24', 'mulf24', 'divf24', 'negf24', 'powf24', 'xor', 'lobh', 'not'];
 KEYR   = ["ac", "bs", "cn", "dc", "dt", "di", "sp", "bp", "ex", "fx", "hx", "lx", "x", "y", "ix", "iy"];
 KEY3   = ["lda", "ldb", "ldc", "ldd", "ldt", "ldi"];
 
-KEYMDRN = ["jsr", "psh", "rts", "hlt1"];
-KEYRETR = ["call", "push", "ret", "trap"];
+KEYMDRN = ["jsr", "psh", "rts", "hlt1", "inc", "je", "jne", "dec", "lp"];
+KEYRETR = ["call", "push", "ret", "trap", "inx", "jme", "jmne", "dex", "loop"];
 
 
 def PrintTokens(toks: list):
@@ -374,6 +374,7 @@ ParseInst = lambda toks, b, pos, pc: (
    (ASTINS, "CLC",   0, pos + 1, pc + 1) if (b == "clc") else
    (ASTINS, "HLT",   0, pos + 1, pc + 1) if (b == "hlt") else
    (ASTINS, "CLI",   0, pos + 1, pc + 1) if (b == "cli") else
+   (ASTINS, "NOTr", toks[pos+1][1], pos + 2, pc + 2) if ((b == "not") and (toks[pos+1][0] == T_REG)) else
    (ASTINS, "MOVri", (toks[pos+1][1], toks[pos+2][1]), pos + 3, pc + 4) if ((b == "mov") and (toks[pos+1][0] == T_REG) and (toks[pos+2][0] == T_INT)) else
    (ASTINS, "MOVrl", (toks[pos+1][1], toks[pos+2][1]), pos + 3, pc + 4) if ((b == "mov") and (toks[pos+1][0] == T_REG) and (toks[pos+2][0] == T_ID)) else
    (ASTINS, "POWrr", (toks[pos+1][1], toks[pos+2][1]), pos + 3, pc + 3) if ((b == "pow") and (toks[pos+1][0] == T_REG) and (toks[pos+2][0] == T_REG)) else
@@ -543,6 +544,7 @@ CompileInst = lambda prog, b, labels, pos: \
    ((0x37, b[2]), pos+1) if (b[1] == "STORBr") else
    ((0x3F, b[2]), pos+1) if (b[1] == "STORWr") else
    ((0x3B, b[2]), pos+1) if (b[1] == "STGRBr") else
+   ((0xDF, b[2]), pos+1) if (b[1] == "NOTr") else
 #   ((0x57, b[2]), pos+1) if (b[1] == "STOSBr") else
 #   ((0x56, b[2]), pos+1) if (b[1] == "STOGBr") else
    ((0x38,), pos+1) if (b[1] == "LDDS") else

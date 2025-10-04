@@ -83,26 +83,3 @@ border_asm:
 .end:
     pop %ac
     ret
-taskbar:
-    pop %bp
-    ldt 58480
-    lda 7
-    ldc 640
-.floop:
-    int $C
-    inx %dt
-    loop .floop
-    lda 15
-    ldc 640
-.sloop:
-    int $C
-    inx %dt
-    loop .sloop
-    lda 7
-    ldc 5440
-.tloop:
-    int $C
-    inx %dt
-    loop .tloop
-    psh %bp
-ret

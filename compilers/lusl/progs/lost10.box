@@ -1,0 +1,132 @@
+$include <std.box>
+$include <gui.box>
+$include <font.box>
+
+box govndate_inx[num24 x, num24 y] -> void (
+    open box[x, y, 200, 100, 8];
+    open box[x + 200 - 1, y, 1, 100, 8];
+    open box[x, y + 100 - 1, 200, 1, 8];
+    open box[x, y, 1, 100, 8];
+
+    open box[x + 1, y + 1, 198, 98, 0];
+
+    open vputsas16[x + 8, y + 8, 15, "GovnDate by Ксэ816"];
+    open vputs[x + 8, y + 24, 15, "С инкрементацией!"];
+    open vputs8t[x + 8, y + 40, 15, "$ diff gd.old gd.new"];
+    open vputs8t[x + 8, y + 48, 6, "1c1"];
+    open vputs8t[x + 8, y + 56, 9, "< GovnDate=28445"];
+    open vputs8t[x + 8, y + 64, 15, "---");
+    open vputs8t[x + 8, y + 72, 10, "> GovnDate=28446"];
+
+    open box[x + 200 - 9 - 49 - 8, y + 100 - 9 - 16, 49 + 8, 16, 8];
+    open vputs[x + 200 - 9 - 49 - 8 + 4, y + 100 - 9 - 16 + 1, 15, "Скотчать"];
+)
+
+box notify[num24 x, num24 y, char* t, char* st, char* btn] -> void (
+    open box[x, y, 200, 100, 8];
+    open box[x + 200 - 1, y, 1, 100, 8];
+    open box[x, y + 100 - 1, 200, 1, 8];
+    open box[x, y, 1, 100, 8];
+
+    open box[x + 1, y + 1, 198, 98, 0];
+
+    open vputsas16[x + 8, y + 8, 15, t];
+    open vputs[x + 8, y + 24, 15, st];
+
+    open box[x + 200 - 9 - 49 - 8, y + 100 - 9 - 16, 49 + 8, 16, 8];
+    open vputs[x + 200 - 9 - 49 - 8 + 4, y + 100 - 9 - 16 + 1, 15, btn];
+)
+
+box govnweb[num24 x, num24 y] -> void (
+    open window[x,y,340,190,"GovnWeb 2 (Alpha)"];
+    open gic[x+2,y+1,13,gweb2_mini];
+    num24 bx: x + 1
+    num24 by: y + 17
+
+    open box[bx,by,8,8,6];
+    open vputs8t[bx,by,15,"1"];
+    open box[bx+8,by,8,8,8];
+    open vputs8t[bx+8,by,7,"2"];
+    open box[bx+16,by,340-16,8,0];
+    open box[bx,by+8,340,8,12];
+    open vputs8t[bx+340-8*24,by,15,"  100kg/32MiB|08-23-2025"];
+
+    open vputs8t[bx,by+8,15,"GovnWeb 2"];
+    open box[bx,by+16,7*8,8,15];
+    open vputs8t[bx,by+16,0,"Gnkui"];
+    open vputs8t[bx+6*8,by+16,8,"x"];
+    open box[bx+7*8,by+16,340-7*8,8,7];
+    open box[bx,by+24,340,8,15];
+    open vputs8t[bx,by+24,0,"gnkui.github.io"];
+    open vputs8t[bx+15*8,by+24,8,"/"];
+    open box[bx,by+32,340,190-32,15];
+    open vputs16[bx+(340-3*8)/3,by+32,0,"Фанфик про шлюкси"];
+    open vputsas16[bx,by+48,8,"Персонажи: Люкси и Гнкуи"];
+    open vputs8t[bx,by+64,0,"Часть 1\nПасмурдный день апреля, Гнкуи спокойно спа\nла. Но вдруг телефон завибрировал.Гнкуи н\nехотя поднялась с кровати, и проверила тел\nефон. Это был Люксидев. Гнкуи пробормотала\n под нос. -И чего ему надо. В сообщении го\nворилось.-Привет.Не хочешь прогулятся?.Гн\nкуи насупилась и напечатала.-Извини за воп\nрос.Но зачем писать в такую рань? Не долго\nдумая, Люксидев ответил.-Как можно так до\nлго спать.Здоровые люди уже на ногах, а ты\nспишь.Гнкуи не предала значения его словам,\nи быстро ответила.-Ладно, говори во скольк\nо.Люксидев быстро написал.-9:00, я буду жд\nать около твоего дома.Гнкуи посмотрела на\nчасы.8:40."];
+)
+
+box window[num24 x, num24 y, num24 w, num24 h, char* name] -> void (
+    num24 bdr: 15;
+    open box[x,y,w+2,1,bdr];
+    open box[x,y+h+17,w+2,1,bdr];
+    open box[x,y+1,1,h+16,bdr];
+    open box[x+w+1,y+1,1,h+16,bdr];
+    open box[x+1,y+1,w,16,bdr];
+    open box[x+1,y+18,w,h,15];
+    open vputs[x+20,y+1,0,name];
+    open vputs[x+304,y+1,0,"- O X"];
+)
+
+box task[num8 i, num8 s] -> void (
+    if [s] (
+        open box[32+160*i, 480-32, 160,32-2, 8];
+        open box[32+160*i, 480-2, 160, 2, 10];
+    ) else (
+        open box[34+160*i, 480-2, 156, 2, 7);
+    ) if [i == 0] (
+        open gic[32+4+160*i, 480-32+8,13, gweb2_mini];
+        open vputs[32+4+16+4+160*i, 480-32+8, 15, "GovnWeb 2"];
+    ) else if [i == 1] (
+        open gic[32+4+160*i, 480-32+8,13, max_mini];
+        open vputs[32+4+16+4+160*i, 480-32+8, 15, "Рика Фуруде - MAX"];
+    ) else if [i == 2] (
+        open gic[32+4+160*i, 480-32+8,13, my_pc];
+        open vputs[32+4+16+4+160*i, 480-32+8, 15, "ПО `мой пк`"];
+    ) else (
+        open box[32+4+160*i, 480-32+8, 16, 16, 3];
+    )
+)
+
+box draw_mouse[] -> void (
+  asm["jsr getmousepos"];
+  asm["mov %di cursor"];
+  asm["int $13"];
+  asm["int $11"];
+  asm["mov %dc 16"];
+  asm["int $22"];
+)
+
+box main[] -> void (
+    open load_pal();
+    while [1] (
+        open gic[0,0,13,wall];
+        open gic[8, 480-24,13, g10];
+
+        open vputs[640-6*8,480-29,15, "00:00:00"];
+        open vputs[640-6*8,480-16,15, "09.25.25"];
+
+        open vputs[8, 8+32, 15, "GovnWeb2"];
+        open gic[8+8, 8, 13, gweb2];
+        open vputs[8, 8+32+48, 15, "VKontakte"];
+        open gic[8+8, 8+48, 13, max];
+
+        open task[0,1];
+        open task[1,0];
+        open task[2,0];
+
+        open govnweb[160,8];
+
+        open govndate_inx[640-200-8,480-100-32-8];
+
+        open draw_mouse[];
+    )

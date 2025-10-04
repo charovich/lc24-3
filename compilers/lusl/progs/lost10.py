@@ -14,9 +14,9 @@ def govndate_inx(x, y):
     vputs(x + 8, y + 24, 15, "С инкрементацией!")
     vputs8t(x + 8, y + 40, 15, "$ diff gd.old gd.new")
     vputs8t(x + 8, y + 48, 6, "1c1")
-    vputs8t(x + 8, y + 56, 9, "< GovnDate=28439")
+    vputs8t(x + 8, y + 56, 9, "< GovnDate=28445")
     vputs8t(x + 8, y + 64, 15, "---")
-    vputs8t(x + 8, y + 72, 10, "> GovnDate=28440")
+    vputs8t(x + 8, y + 72, 10, "> GovnDate=28446")
 
     box(x + 200 - 9 - 49 - 8, y + 100 - 9 - 16, 49 + 8, 16, 8)
     vputs(x + 200 - 9 - 49 - 8 + 4, y + 100 - 9 - 16 + 1, 15, "Скотчать")

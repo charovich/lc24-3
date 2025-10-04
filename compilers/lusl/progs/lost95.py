@@ -63,7 +63,7 @@ def window(x, y, w, h, a, n):
     else:
         box(x, y, w, 13, 8)
     box(x, y + 13, w, h, 7)
-    vputs8t(x + 2, y + 2, 15, n)
+    vputs5(x + 2, y + 2, 15, n)
     box(x + w - 30, y + 2, 18, 9, 7)
     border(x + w - 30, y + 2, 5, 5, B3D)
     spr(x + w - 28, y + 4, 0, MINIMIZE_SPR)
@@ -73,30 +73,13 @@ def window(x, y, w, h, a, n):
     border(x + w - 11, y + 2, 5, 5, B3D)
     spr(x + w - 9, y + 4, 0, CLOSE_SPR)
 
-
 def main():
     flag = 1
+    cls(36)
+    i = 1
+    while i != 10:
+        window(10*i,5*i,100,100,i==9, "Explorer")
+        i = i + 1
+    vflush()
     while flag:
-        cls(36)
-        window(10,5,360,100,9,"Explorer")
-        vputs8t(10, 18, 0, "BILL GATES WANTED GNU/LINUX\nHERE'S YOUR :fig:\nHA:abaudna:\nGNU/LINUX MOTHERLAND:abaudna::fig:\nROTTEN WINDOWS WILL SOON DIE:fig:\nOUR LINUX-OID SPIRIT CANNOT BE BROKEN:strong:\nMICROSOFT WILL BE OURS :ura:")
-        puts("X:")
-        puti(getx());
-        puts("\n")
-        puts("Y:")
-        puti(gety())
-        puts("\n")
-        puts("Clicked:")
-        puti(getm())
-        puts("\n")
-        get1 = 360
-        get2 = 7
-        get3 = 2
-        if scmp(getx(), get1):
-            if scmp(gety(), get2):
-                if scmp(getm(), get3):
-                    __asm__('int $12')
-                    __asm__('lda $69')
-                    __asm__('trap')
-        draw_mouse()
-        vflush()
+        msleep(1)
