@@ -1,4 +1,3 @@
-
 start:
     mov %ac $C          ; CMD_MATRIX_MODE
     mov %bs 1           ; PROJECTION
@@ -41,6 +40,7 @@ start:
 
     mov %ac 17          ; CMD_NEW_LIST
     mov %bs %fx
+    mov %cn $1300
     int $45
 
     ; CubeK (12 triangles, 6 faces)
