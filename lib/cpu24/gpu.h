@@ -1,3 +1,7 @@
+
+#ifndef GPU_H
+#define GPU_H 1
+
 // GPU identificator: GovnGraphics 69-4932
 #include <cpu24/gpuh.h>
 #include <cpu24/gpufont.h>
@@ -250,3 +254,4 @@ U0 GGsprite810_mono(LC* lc) {
   }
 }
 
+#endif // GPU_H

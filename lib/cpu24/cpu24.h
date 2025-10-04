@@ -3,6 +3,7 @@
 #include <cpu24/proc/interrupts.h>
 #include <cpu24/gpu.h>
 #ifndef EFIKATOR
+#include <cpu24/gpu3d.h>
 #include <cpu24/spu.h>
 #include <cpu24/hid.h>
 #endif
@@ -135,8 +136,11 @@ U8 JMNE0(LC* lc) {
 
 // C5 -- Jump to imm24 address if negative flag set
 U8 JL0(LC* lc) {
-  if (NF(lc->PS)) { lc->PC = Read24(lc, lc->PC+1); lc->PS &= 0b11111101; }
-  else lc->PC += 4;
+  if (NF(lc->PS)) {
+    lc->PC = Read24(lc, lc->PC+2);
+    RESET_NF(lc->PS);
+  }
+  else lc->PC += 5;
   return 0;
 }
 
@@ -271,6 +275,12 @@ U8 INT(LC* lc, bool ri) {
       GGsprite810_mono(lc);
       break;
     }
+#ifndef EFIKATOR
+    case INT_VIDEO_3D_CMD: {
+      lc3D_HandleInterrupt(lc);
+      break;
+    }
+#endif
     case INT_RAND: {
       lc->reg[DC].word = rand() % 65536;
       break;
@@ -286,6 +296,7 @@ U8 INT(LC* lc, bool ri) {
       // its actually about 16 thousand seconds
 #ifndef EFIKATOR
       if (hid_events(lc)) {
+        lc->PC += 2;
         lc_errno = 0;
         return 1;
       }
@@ -1085,7 +1096,7 @@ U8 LAF(LC* lc) {
   return 0;
 }
 
-// F3           not
+// DF           not
 U8 NOT(LC* lc) {
   U8 a = lc->mem[lc->PC+1];
   lc->reg[a].word = ~lc->reg[a].word;
@@ -1299,7 +1310,7 @@ U8 (*INSTS[256])(LC*) = {
   &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr ,
   &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr ,
   &MV26 , &INT0 , &INT1 , &JME0 , &JMNE0, &JL0  , &JG0  , &PUSH0, &PUSH1, &PUSHp, &POP1 , &CPUID, &UNK  , &UNK  , &UNK  , &UNK  ,
-  &INXM , &DEXM , &STRb , &JMP0 , &JMP1 , &JMP2 , &CALL , &COP1 , &LOBHg, &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  ,
+  &INXM , &DEXM , &STRb , &JMP0 , &JMP1 , &JMP2 , &CALL , &COP1 , &LOBHg, &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &NOT  ,
   &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 , &STr0 ,
   &SBc  , &LBc  , &SWc  , &LWc  , &SHc  , &LHc  , &XORrc, &LOBBg, &CIF  , &CFI  , &ADDF , &SUBF , &MULF , &DIVF , &NEGF , &POWF
 };

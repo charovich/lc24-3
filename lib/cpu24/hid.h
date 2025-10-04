@@ -6,20 +6,25 @@ U0 move_mouse(LC* lc, U16 x, U16 y) {
     WriteWord(lc, HID_ADDR, x);
     WriteWord(lc, HID_ADDR + 2, y);
 }
-U0 scroll_mouse(LC* lc, I8 y) {
-    lc->mem[HID_ADDR + 4] = y;
+U0 scroll_mouse(LC* lc, F32 y) {
+    lc->mem[HID_ADDR + 4] &= 0x1F;
+    lc->mem[HID_ADDR + 4] |= (
+      y == 0 ? 0 :
+      y >= 0 ? 0x80 : 0x40
+    );
 }
 U0 mouse_btn(LC* lc, U8 id, U8 val) {
+  if ((id-1) > 4) return; // Not supported
   U8 flag = lc->mem[HID_ADDR + 4];
   if (val) {
-    flag |= 1 << id;
+    flag |= 1 << (id-1);
   } else {
-    flag &= ~(1 << id);
+    flag &= ~(1 << (id-1));
   }
   lc->mem[HID_ADDR + 4] = flag;
 }
 // Keyboard is basically an api for USB-HID
-// https://wiki.libsdl.org/SDL2/SDL_Scancode
+// https://wiki.libsdl.org/SDL3/SDL_Scancode
 #define MAX_KEYS 6
 U0 kbd_btn(LC* lc, U16 id, U8 val) {
   U8 i;
@@ -43,18 +48,19 @@ U8 hid_events(LC* lc) {
   SDL_Event event;
   scroll_mouse(lc, 0);
   while (SDL_PollEvent(&event)) {
+    SDL_ConvertEventToRenderCoordinates(lc->gg.rndr, &event);
     switch(event.type) {
       case SDL_EVENT_QUIT:
         return 1;
       case SDL_EVENT_MOUSE_MOTION:
-        move_mouse(lc, event.motion.x / lc->gg.scale, event.motion.y / lc->gg.scale);
+        move_mouse(lc, event.motion.x /* / lc->gg.scale */, event.motion.y /* / lc->gg.scale */);
         break;
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
       case SDL_EVENT_MOUSE_BUTTON_UP:
         mouse_btn(lc, event.button.button, event.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
         break;
       case SDL_EVENT_MOUSE_WHEEL:
-        scroll_mouse(lc, event.wheel.integer_y);
+        scroll_mouse(lc, event.wheel.y);
         break;
       case SDL_EVENT_KEY_DOWN:
       case SDL_EVENT_KEY_UP:

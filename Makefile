@@ -10,6 +10,7 @@ all:
 	cd compilers/rcc2 && ./build.cmd
 	cp compilers/rcc2/rcc2 builds/rcc2
 	cd utils/Lost86 && make
+	cd utils/LostEFI && make clean ; make clean
 
 install:
 	install -m 755 builds/lc24 /usr/local/bin/
@@ -22,6 +23,7 @@ install:
 	install -m 755 compilers/lusl/lusl /usr/local/bin/
 	install -m 755 builds/rcc2 /usr/local/bin/
 	install -m 755 builds/rcc2ge /usr/local/bin/
+	install -m 755 utils/govndatetime /usr/local/bin/
 
 clean:
 	rm -f builds/lc24
@@ -38,10 +40,27 @@ clean:
 	find . -name "*.obj" -type f | xargs -r rm -f
 	find . -name "*.b" -type f | xargs -r rm -f
 
+efi:
+	cd utils/LostEFI && mkdir -p Disk/EFI/BOOT
+	cd compilers/lusl && ./run.sh run -b sh
+	cp compilers/lusl/progs/compiled/sh.bin file.bin
+	xxd -i file.bin > lib/lusl.h
+	cd utils/LostEFI/ && make clean ; make
+	mv utils/LostEFI/lc24.efi utils/LostEFI/Disk/EFI/BOOT/bootx64.efi
+	rm file.bin
+
+ovmf:
+	sudo qemu-system-x86_64   -drive if=pflash,format=raw,unit=0,file=/usr/share/OVMF/x64/OVMF_CODE.4m.fd   -drive if=pflash,format=raw,unit=1,file=/usr/share/OVMF/x64/OVMF_VARS.4m.fd   -drive file=fat:rw:utils/LostEFI/Disk,format=raw,media=disk   -boot menu=on   -m 1024
+
+ovmf9:
+	sudo qemu-system-x86_64   -drive if=pflash,format=raw,unit=0,file=/usr/share/OVMF/x64/OVMF_CODE.4m.fd   -drive if=pflash,format=raw,unit=1,file=/usr/share/OVMF/x64/OVMF_VARS.4m.fd   -drive file=fat:rw:utils/LostEFI/Disk,format=raw,media=disk   -boot menu=on   -m 1024 -rtc base="2025-09-09",clock=vm
+
 lost86:
 	cd utils/Lost86 && make run
 
 lost:
 	make
 	sudo make install
-	sudo make lost86
+	make efi
+	sudo make ovmf
+	make lost86
