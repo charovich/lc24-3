@@ -29,8 +29,9 @@ struct lc_gg32 {
   U8 scale; // platno
   SDL_Window* win;
   SDL_Renderer* rndr;
-  SDL_Surface* surf;
+  SDL_Texture* tex;
   SDL_Palette* pal;
+  U32 pal_cache[256];
 };
 typedef struct lc_gg32 lc_gg32;
 #endif

@@ -6,22 +6,38 @@
 #include <cpu24/cpu24h.h>
 #include <cpu24/gpu3dh.h>
 
+#define MATRIX_STACK_DEPTH            16
+#define MAX_DISPLAY_LISTS             256
+#define MAX_LIST_COMMANDS             1024
+
 // --- Consts ---
-#define LC3D_MODE_POINTS         0
-#define LC3D_MODE_LINES          1
-#define LC3D_MODE_TRIANGLES      3
-#define LC3D_MODE_QUADS          5
-#define LC3D_MODELVIEW  0
-#define LC3D_PROJECTION 1
-#define MATRIX_STACK_DEPTH 16
-#define LC3D_DEPTH_TEST           0x0B71
-#define LC3D_COLOR_BUFFER_BIT     0x00004000
-#define LC3D_DEPTH_BUFFER_BIT     0x00000100
-#define LC3D_LESS                 0x0201
-#define LC3D_ALWAYS               0x0207
-#define LC3D_AUTO_FLUSH           0x1221
-#define MAX_DISPLAY_LISTS 256
-#define MAX_LIST_COMMANDS 1024
+#define LC3D_MODE_POINTS                0x0
+#define LC3D_MODE_LINES                 0x1
+#define LC3D_MODE_TRIANGLES             0x3
+#define LC3D_MODE_QUADS                 0x5
+#define LC3D_MODELVIEW                  0x0
+#define LC3D_PROJECTION                 0x1
+#define LC3D_DEPTH_TEST                 0x0B71
+#define LC3D_COLOR_BUFFER_BIT           0x00004000
+#define LC3D_DEPTH_BUFFER_BIT           0x00000100
+#define LC3D_LESS                       0x0201
+#define LC3D_ALWAYS                     0x0207
+#define LC3D_AUTO_FLUSH                 0x1221
+#define LC3D_COMPILE                    0x1300
+#define LC3D_COMPILE_AND_EXECUTE        0x1301
+#define LC3D_NO_ERROR                   0x0000
+#define LC3D_INVALID_ENUM               0x0500
+#define LC3D_INVALID_VALUE              0x0501
+#define LC3D_INVALID_OPERATION          0x0502
+#define LC3D_STACK_OVERFLOW             0x0503
+#define LC3D_STACK_UNDERFLOW            0x0504
+#define LC3D_OUT_OF_MEMORY              0x0505
+#define LC3D_VIEWPORT                   0x0BA2
+#define LC3D_MODELVIEW_MATRIX           0x0BA6
+#define LC3D_PROJECTION_MATRIX          0x0BA7
+#define LC3D_MAX_MODELVIEW_STACK_DEPTH  0x0D36
+#define LC3D_MAX_PROJECTION_STACK_DEPTH 0x0D38
+
 
 // command ids
 #define CMD_BEGIN           1
@@ -47,13 +63,16 @@
 #define CMD_LOAD_IDENTITY   21
 #define CMD_ROTATEI         22
 #define CMD_FLUSH           23
+#define CMD_VIEWPORT        24
+#define CMD_GET_ERROR       25
+#define CMD_IS_ENABLED      26
 
 // --- LC3D States ---
 typedef struct { int x, y; float r, g, b, a, z; } scanline_vert;
 typedef struct { float m[4][4]; } mat4;
 typedef struct { float x, y, z, w; } vec4;
 typedef struct { int command_id; float args[4]; } lc3d_command;
-typedef struct { lc3d_command commands[MAX_LIST_COMMANDS]; int count; } lc3d_display_list;
+typedef struct { int is_compiled; lc3d_command commands[MAX_LIST_COMMANDS]; int command_count; lc_vertex3d* compiled_object_verts; int compiled_vert_count;  U8 compiled_mode; } lc3d_display_list;
 
 static lc_3d_pipeline_state pipeline_state;
 static int current_matrix_mode = LC3D_MODELVIEW;
@@ -72,8 +91,16 @@ static int depth_function = LC3D_LESS;
 
 static int auto_flush_enabled = 1;
 
-static lc3d_display_list display_lists[MAX_DISPLAY_LISTS];
+static lc3d_display_list display_lists[MAX_DISPLAY_LISTS] = {0};
 static int recording_list_id = -1;
+static int list_compile_mode = LC3D_COMPILE;
+
+static int lc3d_error = LC3D_NO_ERROR;
+
+static int viewport_x = 0;
+static int viewport_y = 0;
+static int viewport_width = WINW;
+static int viewport_height = WINH;
 
 float lerp(float a, float b, float t) { if (t < 0.0f) t = 0.0f; if (t > 1.0f) t = 1.0f; return a + (b - a) * t; }
 float u32_to_float(U32 val) {
@@ -156,6 +183,11 @@ void lc3D_InitPalette(LC* lc) {
     printf("[GPU3D] RGB 3-3-2 palette initialized.\n");
 }
 
+void lc3D_SetError(int error) {
+    if (lc3d_error == LC3D_NO_ERROR) {
+        lc3d_error = error;
+    }
+}
 
 void draw_line(LC* lc, int x0, int y0, float z0, int x1, int y1, float z1, U8 color_index) {
     int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
@@ -247,7 +279,37 @@ mat4* get_current_matrix() {
 void lc3D_MatrixMode(int mode) {
     if (mode == LC3D_MODELVIEW || mode == LC3D_PROJECTION) {
         current_matrix_mode = mode;
+    } else {
+        lc3D_SetError(LC3D_INVALID_ENUM);
     }
+}
+
+int lc3D_GetError() {
+    int error = lc3d_error;
+    lc3d_error = LC3D_NO_ERROR;
+    return error;
+}
+
+int lc3D_IsEnabled(int cap) {
+    switch (cap) {
+        case LC3D_DEPTH_TEST: return depth_test_enabled;
+        case LC3D_AUTO_FLUSH: return auto_flush_enabled;
+        default: 
+            lc3D_SetError(LC3D_INVALID_ENUM);
+            return 0;
+    }
+}
+
+
+void lc3D_Viewport(int x, int y, int width, int height) {
+    if (width < 0 || height < 0) {
+        lc3D_SetError(LC3D_INVALID_VALUE);
+        return;
+    }
+    viewport_x = x;
+    viewport_y = y;
+    viewport_width = width;
+    viewport_height = height;
 }
 
 void lc3D_LoadIdentity() {
@@ -259,20 +321,36 @@ void lc3D_LoadIdentity() {
 }
 
 void lc3D_PushMatrix() {
-    if (current_matrix_mode == LC3D_MODELVIEW && modelview_stack_top < MATRIX_STACK_DEPTH - 1) {
+    if (current_matrix_mode == LC3D_MODELVIEW) {
+        if (modelview_stack_top >= MATRIX_STACK_DEPTH - 1) {
+            lc3D_SetError(LC3D_STACK_OVERFLOW);
+            return;
+        }
         modelview_stack_top++;
         modelview_stack[modelview_stack_top] = modelview_matrix;
-    } else if (current_matrix_mode == LC3D_PROJECTION && projection_stack_top < MATRIX_STACK_DEPTH - 1) {
+    } else if (current_matrix_mode == LC3D_PROJECTION) {
+        if (projection_stack_top >= MATRIX_STACK_DEPTH - 1) {
+            lc3D_SetError(LC3D_STACK_OVERFLOW);
+            return;
+        }
         projection_stack_top++;
         projection_stack[projection_stack_top] = projection_matrix;
     }
 }
 
 void lc3D_PopMatrix() {
-    if (current_matrix_mode == LC3D_MODELVIEW && modelview_stack_top >= 0) {
+    if (current_matrix_mode == LC3D_MODELVIEW) {
+        if (modelview_stack_top < 0) {
+            lc3D_SetError(LC3D_STACK_UNDERFLOW);
+            return;
+        }
         modelview_matrix = modelview_stack[modelview_stack_top];
         modelview_stack_top--;
-    } else if (current_matrix_mode == LC3D_PROJECTION && projection_stack_top >= 0) {
+    } else if (current_matrix_mode == LC3D_PROJECTION) {
+        if (projection_stack_top < 0) {
+            lc3D_SetError(LC3D_STACK_UNDERFLOW);
+            return;
+        }
         projection_matrix = projection_stack[projection_stack_top];
         projection_stack_top--;
     }
@@ -311,11 +389,32 @@ void lc3D_Scalef(float x, float y, float z) {
 
 void lc3D_Rotatef(float angle, float x, float y, float z) {
     float rad = angle * 3.14159265f / 180.0f;
-    mat4 r, temp;
+    float c = cosf(rad);
+    float s = sinf(rad);
+    float len = sqrtf(x*x + y*y + z*z);
+    if (len < 0.0001f) return;
+    
+    x /= len;
+    y /= len;
+    z /= len;
+    float one_minus_c = 1.0f - c;
+    
+    mat4 r;
     mat4_identity(&r);
-    if (x > 0) { float c = cosf(rad), s = sinf(rad); r.m[1][1]=c; r.m[1][2]=s; r.m[2][1]=-s; r.m[2][2]=c; }
-    else if (y > 0) { float c = cosf(rad), s = sinf(rad); r.m[0][0]=c; r.m[0][2]=-s; r.m[2][0]=s; r.m[2][2]=c; }
-    else if (z > 0) { float c = cosf(rad), s = sinf(rad); r.m[0][0]=c; r.m[0][1]=s; r.m[1][0]=-s; r.m[1][1]=c; }
+    
+    r.m[0][0] = x*x*one_minus_c + c;
+    r.m[0][1] = x*y*one_minus_c + z*s;
+    r.m[0][2] = x*z*one_minus_c - y*s;
+    
+    r.m[1][0] = y*x*one_minus_c - z*s;
+    r.m[1][1] = y*y*one_minus_c + c;
+    r.m[1][2] = y*z*one_minus_c + x*s;
+    
+    r.m[2][0] = z*x*one_minus_c + y*s;
+    r.m[2][1] = z*y*one_minus_c - x*s;
+    r.m[2][2] = z*z*one_minus_c + c;
+    
+    mat4 temp;
     mat4_multiply(&temp, get_current_matrix(), &r);
     *get_current_matrix() = temp;
 }
@@ -330,6 +429,10 @@ void lc3D_Rotatei(int angle, int x, int y, int z) {
 }
 
 void lc3D_Ortho(float left, float right, float bottom, float top, float nearVal, float farVal) {
+    if (left == right || bottom == top || nearVal == farVal) {
+        lc3D_SetError(LC3D_INVALID_VALUE);
+        return;
+    }
     mat4 ortho, temp;
     mat4_identity(&ortho);
     ortho.m[0][0] = 2.0f / (right - left);
@@ -345,87 +448,167 @@ void lc3D_Ortho(float left, float right, float bottom, float top, float nearVal,
 void lc3D_Enable(int cap) {
     if (recording_list_id != -1) {
         lc3d_display_list* list = &display_lists[recording_list_id];
-        if (list->count < MAX_LIST_COMMANDS) {
-            list->commands[list->count].command_id = CMD_ENABLE;
-            list->commands[list->count].args[0] = cap;
-            list->count++;
+        if (list->command_count < MAX_LIST_COMMANDS) {
+            list->commands[list->command_count].command_id = CMD_ENABLE;
+            list->commands[list->command_count].args[0] = cap;
+            list->command_count++;
         }
         return;
     }
     switch (cap) {
-        case LC3D_DEPTH_TEST:
-            depth_test_enabled = 1;
-            break;
-        case LC3D_AUTO_FLUSH:
-            auto_flush_enabled = 1;
-            break;
+        case LC3D_DEPTH_TEST: depth_test_enabled = 1; break;
+        case LC3D_AUTO_FLUSH: auto_flush_enabled = 1; break;
+        default: lc3D_SetError(LC3D_INVALID_ENUM); break;
     }
 }
 
 void lc3D_Disable(int cap) {
     if (recording_list_id != -1) {
         lc3d_display_list* list = &display_lists[recording_list_id];
-        if (list->count < MAX_LIST_COMMANDS) {
-            list->commands[list->count].command_id = CMD_DISABLE;
-            list->commands[list->count].args[0] = cap;
-            list->count++;
+        if (list->command_count < MAX_LIST_COMMANDS) {
+            list->commands[list->command_count].command_id = CMD_DISABLE;
+            list->commands[list->command_count].args[0] = cap;
+            list->command_count++;
         }
         return;
     }
     switch (cap) {
-        case LC3D_DEPTH_TEST:
-            depth_test_enabled = 0;
-            break;
-        case LC3D_AUTO_FLUSH:
-            auto_flush_enabled = 0;
-            break;
+        case LC3D_DEPTH_TEST: depth_test_enabled = 0; break;
+        case LC3D_AUTO_FLUSH: auto_flush_enabled = 0; break;
+        default: lc3D_SetError(LC3D_INVALID_ENUM); break;
     }
 }
 
 void lc3D_DepthFunc(int func) {
-    if (func == LC3D_LESS || func == LC3D_ALWAYS) {
-        depth_function = func;
+    if (func != LC3D_LESS && func != LC3D_ALWAYS) {
+        lc3D_SetError(LC3D_INVALID_ENUM);
+        return;
     }
+    depth_function = func;
 }
 
 int lc3D_GenLists(int range) {
+    if (range < 0) {
+        lc3D_SetError(LC3D_INVALID_VALUE);
+        return 0;
+    }
     for (int i = 1; i < MAX_DISPLAY_LISTS; i++) {
-        if (display_lists[i].count == 0) return i;
+        if (display_lists[i].command_count == 0 && !display_lists[i].is_compiled) 
+            return i;
     }
     return 0;
 }
 
-void lc3D_NewList(int list_id) {
-    if (list_id > 0 && list_id < MAX_DISPLAY_LISTS) {
-        recording_list_id = list_id;
-        display_lists[list_id].count = 0;
+
+void lc3D_NewList(int list_id, int mode) {
+    if (list_id <= 0 || list_id >= MAX_DISPLAY_LISTS) {
+        lc3D_SetError(LC3D_INVALID_VALUE);
+        return;
+    }
+    if (mode != LC3D_COMPILE && mode != LC3D_COMPILE_AND_EXECUTE) {
+        lc3D_SetError(LC3D_INVALID_ENUM);
+        return;
+    }
+    if (recording_list_id != -1) {
+        lc3D_SetError(LC3D_INVALID_OPERATION);
+        return;
+    }
+    
+    recording_list_id = list_id;
+    list_compile_mode = mode;
+    
+    lc3d_display_list* list = &display_lists[list_id];
+    list->command_count = 0;
+    list->is_compiled = 0;
+    
+    if (list->compiled_object_verts) {
+        free(list->compiled_object_verts);
+        list->compiled_object_verts = NULL;
     }
 }
 
-void lc3D_EndList() {
+void lc3D_EndList(LC* lc) {
+    if (recording_list_id == -1) {
+        lc3D_SetError(LC3D_INVALID_OPERATION);
+        return;
+    }
+    
+    lc3d_display_list* list = &display_lists[recording_list_id];
+    
+    int list_id = recording_list_id;
     recording_list_id = -1;
+    
+    int old_active = pipeline_state.is_active;
+    int old_count = pipeline_state.count;
+    
+    for (int i = 0; i < list->command_count; i++) {
+        lc3d_command* cmd = &list->commands[i];
+        switch (cmd->command_id) {
+            case CMD_BEGIN:    
+                lc3D_Begin(lc, (U8)cmd->args[0]); 
+                break;
+            case CMD_VERTEX3F: 
+                lc3D_Vertex3f(lc, cmd->args[0], cmd->args[1], cmd->args[2]); 
+                break;
+            case CMD_COLOR4UB: 
+                lc3D_Color4ub(lc, (U8)cmd->args[0], (U8)cmd->args[1], 
+                             (U8)cmd->args[2], (U8)cmd->args[3]); 
+                break;
+        }
+    }
+    
+    if (pipeline_state.count > 0) {
+        list->compiled_object_verts = (lc_vertex3d*)malloc(
+            sizeof(lc_vertex3d) * pipeline_state.count
+        );
+        if (!list->compiled_object_verts) {
+            lc3D_SetError(LC3D_OUT_OF_MEMORY);
+            pipeline_state.is_active = old_active;
+            pipeline_state.count = old_count;
+            return;
+        }
+        
+        list->compiled_vert_count = pipeline_state.count;
+        list->compiled_mode = pipeline_state.mode;
+        list->is_compiled = 1;
+        
+        memcpy(list->compiled_object_verts, pipeline_state.verts, 
+               sizeof(lc_vertex3d) * pipeline_state.count);
+    }
+    
+    pipeline_state.is_active = old_active;
+    pipeline_state.count = old_count;
 }
 
 
 void lc3D_Begin(LC* lc, U8 mode) {
     (void)lc;
+    
     if (recording_list_id != -1) {
         lc3d_display_list* list = &display_lists[recording_list_id];
-        if (list->count < MAX_LIST_COMMANDS) {
-            list->commands[list->count].command_id = CMD_BEGIN;
-            list->commands[list->count].args[0] = (float)mode;
-            list->count++;
+        if (list->command_count < MAX_LIST_COMMANDS) {
+            list->commands[list->command_count].command_id = CMD_BEGIN;
+            list->commands[list->command_count].args[0] = (float)mode;
+            list->command_count++;
         }
         return;
     }
+    
     if (pipeline_state.is_active) {
+        lc3D_SetError(LC3D_INVALID_OPERATION);
         printf("[GPU3D] Error: Nested lc3D_Begin call!\n");
         return;
     }
+    
+    if (mode != LC3D_MODE_POINTS && mode != LC3D_MODE_LINES && 
+        mode != LC3D_MODE_TRIANGLES && mode != LC3D_MODE_QUADS) {
+        lc3D_SetError(LC3D_INVALID_ENUM);
+        return;
+    }
+    
     pipeline_state.is_active = 1;
     pipeline_state.mode = mode;
     pipeline_state.count = 0;
-
     pipeline_state.current_color.r = 255;
     pipeline_state.current_color.g = 255;
     pipeline_state.current_color.b = 255;
@@ -435,41 +618,45 @@ void lc3D_Begin(LC* lc, U8 mode) {
 void lc3D_Color4ub(LC* lc, U8 r, U8 g, U8 b, U8 a) {
     if (recording_list_id != -1) {
         lc3d_display_list* list = &display_lists[recording_list_id];
-        if (list->count < MAX_LIST_COMMANDS) {
-            list->commands[list->count].command_id = CMD_COLOR4UB;
-            list->commands[list->count].args[0] = (float)r;
-            list->commands[list->count].args[1] = (float)g;
-            list->commands[list->count].args[2] = (float)b;
-            list->commands[list->count].args[3] = (float)a;
-            list->count++;
+        if (list->command_count < MAX_LIST_COMMANDS) {
+            list->commands[list->command_count].command_id = CMD_COLOR4UB;
+            list->commands[list->command_count].args[0] = (float)r;
+            list->commands[list->command_count].args[1] = (float)g;
+            list->commands[list->command_count].args[2] = (float)b;
+            list->commands[list->command_count].args[3] = (float)a;
+            list->command_count++;
         }
         return;
     }
     (void)lc;
-
     pipeline_state.current_color.r = r;
     pipeline_state.current_color.g = g;
     pipeline_state.current_color.b = b;
     pipeline_state.current_color.a = a;
 }
 
+
 void lc3D_Vertex3f(LC* lc, float x, float y, float z) {
     if (recording_list_id != -1) {
         lc3d_display_list* list = &display_lists[recording_list_id];
-        if (list->count < MAX_LIST_COMMANDS) {
-            list->commands[list->count].command_id = CMD_VERTEX3F;
-            list->commands[list->count].args[0] = x;
-            list->commands[list->count].args[1] = y;
-            list->commands[list->count].args[2] = z;
-            list->count++;
+        if (list->command_count < MAX_LIST_COMMANDS) {
+            list->commands[list->command_count].command_id = CMD_VERTEX3F;
+            list->commands[list->command_count].args[0] = x;
+            list->commands[list->command_count].args[1] = y;
+            list->commands[list->command_count].args[2] = z;
+            list->command_count++;
         }
         return;
     }
 
     (void)lc;
-    if (!pipeline_state.is_active) return;
-    if (pipeline_state.count >= 32) {
-        printf("[GPU3D] Error: Vertex buffer overflow!\n");
+    if (!pipeline_state.is_active) {
+        lc3D_SetError(LC3D_INVALID_OPERATION);
+        return;
+    }
+    
+    if (pipeline_state.count >= VERTEX_BUFFER_SIZE) {
+        lc3D_SetError(LC3D_OUT_OF_MEMORY);
         return;
     }
 
@@ -485,43 +672,60 @@ void lc3D_Vertex3f(LC* lc, float x, float y, float z) {
 void lc3D_End(LC* lc) {
     if (recording_list_id != -1) {
         lc3d_display_list* list = &display_lists[recording_list_id];
-        if (list->count < MAX_LIST_COMMANDS) {
-            list->commands[list->count].command_id = CMD_END;
-            list->count++;
+        if (list->command_count < MAX_LIST_COMMANDS) {
+            list->commands[list->command_count].command_id = CMD_END;
+            list->command_count++;
         }
         return;
     }
-    if (!pipeline_state.is_active || pipeline_state.count == 0) { pipeline_state.is_active = 0; return; }
+    
+    if (!pipeline_state.is_active) {
+        lc3D_SetError(LC3D_INVALID_OPERATION);
+        return;
+    }
+    
+    if (pipeline_state.count == 0) { 
+        pipeline_state.is_active = 0; 
+        return; 
+    }
+    
     pipeline_state.is_active = 0;
 
     mat4 mvp_matrix;
     mat4_multiply(&mvp_matrix, &projection_matrix, &modelview_matrix);
 
-    scanline_vert v_data[32];
+    scanline_vert v_data[VERTEX_BUFFER_SIZE];
+    
     for (int i = 0; i < pipeline_state.count; i++) {
         lc_vertex3d* v_in = &pipeline_state.verts[i];
         vec4 temp_v = {v_in->x, v_in->y, v_in->z, 1.0f};
         temp_v = mat4_multiply_vec4(&mvp_matrix, &temp_v);
 
-        v_data[i].x = (temp_v.x / temp_v.w + 1.0f) * 0.5f * WINW;
-        v_data[i].y = (-temp_v.y / temp_v.w + 1.0f) * 0.5f * WINH;
-        v_data[i].z = (temp_v.z / temp_v.w + 1.0f) * 0.5f;
+        float ndc_x = temp_v.x / temp_v.w;
+        float ndc_y = temp_v.y / temp_v.w;
+        float ndc_z = temp_v.z / temp_v.w;
+        
+        v_data[i].x = viewport_x + (ndc_x + 1.0f) * 0.5f * viewport_width;
+        v_data[i].y = viewport_y + (-ndc_y + 1.0f) * 0.5f * viewport_height;
+        v_data[i].z = (ndc_z + 1.0f) * 0.5f;
         v_data[i].r = v_in->r;
         v_data[i].g = v_in->g;
         v_data[i].b = v_in->b;
         v_data[i].a = v_in->a;
-
     }
 
     switch (pipeline_state.mode) {
         case LC3D_MODE_POINTS:
             for (int i = 0; i < pipeline_state.count; i++)
-                put_pixel(lc, v_data[i].x, v_data[i].y, v_data[i].z, find_closest_color(v_data[i].r, v_data[i].g, v_data[i].b, v_data[i].x, v_data[i].y));
+                put_pixel(lc, v_data[i].x, v_data[i].y, v_data[i].z, 
+                         find_closest_color(v_data[i].r, v_data[i].g, v_data[i].b, v_data[i].x, v_data[i].y));
             break;
         case LC3D_MODE_LINES:
             for (int i = 0; i < pipeline_state.count; i += 2)
                 if (i + 1 < pipeline_state.count)
-                    draw_line(lc, v_data[i].x, v_data[i].y, v_data[i].z, v_data[i+1].x, v_data[i+1].y, v_data[i+1].z, find_closest_color(v_data[i].r, v_data[i].g, v_data[i].b, v_data[i].x, v_data[i].y));
+                    draw_line(lc, v_data[i].x, v_data[i].y, v_data[i].z, 
+                             v_data[i+1].x, v_data[i+1].y, v_data[i+1].z, 
+                             find_closest_color(v_data[i].r, v_data[i].g, v_data[i].b, v_data[i].x, v_data[i].y));
             break;
         case LC3D_MODE_TRIANGLES:
             for (int i = 0; i < pipeline_state.count; i += 3)
@@ -551,21 +755,102 @@ void lc3D_Flush(LC* lc) {
 }
 
 void lc3D_CallList(LC* lc, int list_id) {
-    if (list_id > 0 && list_id < MAX_DISPLAY_LISTS) {
-        lc3d_display_list* list = &display_lists[list_id];
-        for (int i = 0; i < list->count; i++) {
+    if (list_id <= 0 || list_id >= MAX_DISPLAY_LISTS) {
+        lc3D_SetError(LC3D_INVALID_VALUE);
+        return;
+    }
+    
+    if (recording_list_id != -1) {
+        lc3D_SetError(LC3D_INVALID_OPERATION);
+        return;
+    }
+    
+    lc3d_display_list* list = &display_lists[list_id];
+    
+    if (list->is_compiled) {
+        mat4 mvp_matrix;
+        mat4_multiply(&mvp_matrix, &projection_matrix, &modelview_matrix);
+        
+        scanline_vert* screen_verts = (scanline_vert*)malloc(
+            sizeof(scanline_vert) * list->compiled_vert_count
+        );
+        
+        if (!screen_verts) {
+            lc3D_SetError(LC3D_OUT_OF_MEMORY);
+            return;
+        }
+        
+        for (int i = 0; i < list->compiled_vert_count; i++) {
+            lc_vertex3d* v_in = &list->compiled_object_verts[i];
+            vec4 temp_v = {v_in->x, v_in->y, v_in->z, 1.0f};
+            temp_v = mat4_multiply_vec4(&mvp_matrix, &temp_v);
+            
+            float ndc_x = temp_v.x / temp_v.w;
+            float ndc_y = temp_v.y / temp_v.w;
+            float ndc_z = temp_v.z / temp_v.w;
+            
+            screen_verts[i].x = viewport_x + (ndc_x + 1.0f) * 0.5f * viewport_width;
+            screen_verts[i].y = viewport_y + (-ndc_y + 1.0f) * 0.5f * viewport_height;
+            screen_verts[i].z = (ndc_z + 1.0f) * 0.5f;
+            screen_verts[i].r = v_in->r;
+            screen_verts[i].g = v_in->g;
+            screen_verts[i].b = v_in->b;
+            screen_verts[i].a = v_in->a;
+        }
+        
+        switch (list->compiled_mode) {
+            case LC3D_MODE_TRIANGLES:
+                for (int i = 0; i < list->compiled_vert_count; i += 3) {
+                    if (i + 2 < list->compiled_vert_count)
+                        fill_triangle(lc, &screen_verts[i]);
+                }
+                break;
+            case LC3D_MODE_QUADS:
+                for (int i = 0; i < list->compiled_vert_count; i += 4) {
+                    if (i + 3 < list->compiled_vert_count) {
+                        scanline_vert tri1[] = {
+                            screen_verts[i], 
+                            screen_verts[i+1], 
+                            screen_verts[i+2]
+                        };
+                        fill_triangle(lc, tri1);
+                        scanline_vert tri2[] = {
+                            screen_verts[i], 
+                            screen_verts[i+2], 
+                            screen_verts[i+3]
+                        };
+                        fill_triangle(lc, tri2);
+                    }
+                }
+                break;
+            case LC3D_MODE_LINES:
+                for (int i = 0; i < list->compiled_vert_count; i += 2) {
+                    if (i + 1 < list->compiled_vert_count)
+                        draw_line(lc, 
+                            screen_verts[i].x, screen_verts[i].y, screen_verts[i].z,
+                            screen_verts[i+1].x, screen_verts[i+1].y, screen_verts[i+1].z,
+                            find_closest_color(screen_verts[i].r, screen_verts[i].g, 
+                                             screen_verts[i].b, screen_verts[i].x, 
+                                             screen_verts[i].y));
+                }
+                break;
+        }
+        
+        free(screen_verts);
+    } else {
+        for (int i = 0; i < list->command_count; i++) {
             lc3d_command* cmd = &list->commands[i];
             switch (cmd->command_id) {
                 case CMD_BEGIN:    lc3D_Begin(lc, (U8)cmd->args[0]); break;
                 case CMD_END:      lc3D_End(lc); break;
                 case CMD_VERTEX3F: lc3D_Vertex3f(lc, cmd->args[0], cmd->args[1], cmd->args[2]); break;
-                case CMD_COLOR4UB: lc3D_Color4ub(lc, (U8)cmd->args[0], (U8)cmd->args[1], (U8)cmd->args[2], (U8)cmd->args[3]); break;
-                case CMD_ENABLE:   lc3D_Enable((int)cmd->args[0]); break;
-                case CMD_DISABLE:  lc3D_Disable((int)cmd->args[0]); break;
+                case CMD_COLOR4UB: lc3D_Color4ub(lc, (U8)cmd->args[0], (U8)cmd->args[1], 
+                                                  (U8)cmd->args[2], (U8)cmd->args[3]); break;
             }
         }
     }
 }
+
 
 void lc3D_Init(LC* lc) {
     (void)lc;
@@ -576,9 +861,21 @@ void lc3D_Init(LC* lc) {
     lc3D_MatrixMode(LC3D_MODELVIEW);
     lc3D_LoadIdentity();
     lc3D_InitPalette(lc);
+    
     if (depth_buffer == NULL) {
         depth_buffer = (float*)malloc(sizeof(float) * WINW * WINH);
+        if (!depth_buffer) {
+            printf("[GPU3D] FATAL: Failed to allocate depth buffer!\n");
+            return;
+        }
+        for (int i = 0; i < WINW * WINH; i++) {
+            depth_buffer[i] = 1.0f;
+        }
     }
+    viewport_x = 0;
+    viewport_y = 0;
+    viewport_width = WINW;
+    viewport_height = WINH;
 }
 
 void lc3D_HandleInterrupt(LC* lc) {
@@ -602,15 +899,18 @@ void lc3D_HandleInterrupt(LC* lc) {
         case CMD_PUSH_MATRIX:   lc3D_PushMatrix(); break;
         case CMD_POP_MATRIX:    lc3D_PopMatrix(); break;
         case CMD_GEN_LISTS:     int list_id = lc3D_GenLists(lc->reg[BS].word); lc->reg[AC].word = list_id; break;
-        case CMD_NEW_LIST:      lc3D_NewList(lc->reg[BS].word); break;
-        case CMD_END_LIST:      lc3D_EndList(); break;
+        case CMD_NEW_LIST:      lc3D_NewList(lc->reg[BS].word, lc->reg[CN].word); break;
+        case CMD_END_LIST:      lc3D_EndList(lc); break;
         case CMD_CALL_LIST:     lc3D_CallList(lc, lc->reg[BS].word); break;
         case CMD_ORTHO:         lc3D_Ortho(u32_to_float(lc->reg[BS].word), u32_to_float(lc->reg[CN].word), u32_to_float(lc->reg[DC].word), u32_to_float(lc->reg[DT].word), u32_to_float(lc->reg[DI].word), u32_to_float(lc->reg[EX].word)); break;
         case CMD_ROTATEI:       lc3D_Rotatei((int)lc->reg[BS].word, (int)lc->reg[CN].word, (int)lc->reg[DC].word, (int)lc->reg[DT].word); break;
         case CMD_FLUSH:         lc3D_Flush(lc); break;
-
+        case CMD_VIEWPORT:      lc3D_Viewport((int)lc->reg[BS].word, (int)lc->reg[CN].word, (int)lc->reg[DC].word, (int)lc->reg[DT].word); break;
+        case CMD_GET_ERROR:     lc->reg[AC].word = lc3D_GetError(); break;
+        case CMD_IS_ENABLED:    lc->reg[AC].word = lc3D_IsEnabled(lc->reg[BS].word); break;
         default:
             printf("GPU3D: Unknown command code %d\n", command);
+            lc3D_SetError(LC3D_INVALID_ENUM);
             break;
     }
 }

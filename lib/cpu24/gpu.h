@@ -6,6 +6,11 @@
 #include <cpu24/gpuh.h>
 #include <cpu24/gpufont.h>
 
+#define LOG_FPS 1
+static U64 frame_count = 0;
+static U64 last_fps_time = 0;
+static float current_fps = 0.0f;
+
 ggrgb rgbv[] = {
   (ggrgb){.r = 0x00, .g = 0x00, .b = 0x00},
   (ggrgb){.r = 0xAA, .g = 0x00, .b = 0x00},
@@ -52,28 +57,80 @@ U0 GGinit(U8* mem, lc_gg32* gg, U8 scale) {
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
   SDL_SetAppMetadata("LostCore 24-20020", "24-3", "io.github.charovich.lc24-3");
   gg->scale = scale;
-  gg->win = SDL_CreateWindow("Lost NEWVGA2", WINW * scale, WINH * scale, SDL_WINDOW_HIGH_PIXEL_DENSITY);
-  gg->surf = SDL_CreateSurface(WINW, WINH, SDL_PIXELFORMAT_INDEX8);
+  gg->win = SDL_CreateWindow("Lost NEWVGA2", 640, 480, 0);
+  SDL_SetWindowResizable(gg->win, false);
+  
+  gg->rndr = SDL_CreateRenderer(gg->win, NULL);
+  SDL_SetRenderVSync(gg->rndr, 0);
+  SDL_SetRenderLogicalPresentation(gg->rndr, 640, 480, 
+    SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+  SDL_SetRenderVSync(gg->rndr, 1);
+  gg->tex = SDL_CreateTexture(
+    gg->rndr,
+    SDL_PIXELFORMAT_RGBA8888,
+    SDL_TEXTUREACCESS_STREAMING,
+    WINW, WINH
+  );
   gg->pal = SDL_CreatePalette(256);
-  SDL_SetSurfacePalette(gg->surf, gg->pal);
   gg->status = 0b00000000;
   SDL_HideCursor();
-  SDL_UpdateWindowSurface(gg->win);
 }
 
 U0 GGstop(lc_gg32* gg) {
   SDL_DestroyPalette(gg->pal);
-  SDL_DestroySurface(gg->surf);
+  SDL_DestroyTexture(gg->tex);
   SDL_DestroyRenderer(gg->rndr);
   SDL_DestroyWindow(gg->win);
   SDL_Quit();
 }
 
 U0 GGupload(LC* lc) {
-  lc->gg.surf->pixels = lc->mem + 0x400000;
-  SDL_SetSurfacePalette(lc->gg.surf, lc->gg.pal);
-  SDL_BlitSurfaceScaled(lc->gg.surf, 0, SDL_GetWindowSurface(lc->gg.win), 0, SDL_SCALEMODE_NEAREST);
-  SDL_UpdateWindowSurface(lc->gg.win);
+  void* pixels;
+  int pitch;
+  
+  SDL_LockTexture(lc->gg.tex, NULL, &pixels, &pitch);
+  if (pitch == WINW * 4) {
+    U8* src = lc->mem + 0x400000;
+    U32* dst = (U32*)pixels;
+    
+    for (int i = 0; i < VGASIZE; i++) {
+      dst[i] = lc->gg.pal_cache[src[i]];
+    }
+  } else {
+    for (int y = 0; y < WINH; y++) {
+      U32* row = (U32*)((U8*)pixels + y * pitch);
+      U8* src = lc->mem + 0x400000 + y * WINW;
+      
+      for (int x = 0; x < WINW; x++) {
+        row[x] = lc->gg.pal_cache[src[x]];
+      }
+    }
+  }
+  
+  SDL_UnlockTexture(lc->gg.tex);
+  
+  if (LOG_FPS) {
+    frame_count++;
+    U64 current_time = SDL_GetTicks();
+
+    if (current_time - last_fps_time >= 1000) {
+        current_fps = frame_count * 1000.0f / (current_time - last_fps_time);
+        
+        U64 freq = SDL_GetPerformanceFrequency();
+        
+        char title[128];
+        snprintf(title, sizeof(title), 
+            "Lost NEWVGA2 - %.1f FPS", 
+            current_fps);
+        SDL_SetWindowTitle(lc->gg.win, title);
+        
+        frame_count = 0;
+        last_fps_time = current_time;
+    }
+  }
+  SDL_RenderClear(lc->gg.rndr);
+  SDL_RenderTexture(lc->gg.rndr, lc->gg.tex, NULL, NULL);
+  SDL_RenderPresent(lc->gg.rndr);
 }
 #else
 U0 GGinit(U8* mem, lc_gg32* gg, U8 scale) {
@@ -129,11 +186,16 @@ U0 GGflush(LC* lc) {
 
 U0 GGpage_CGA16(LC* lc) {
   U16 i;
+  const SDL_PixelFormatDetails* format = SDL_GetPixelFormatDetails(SDL_PIXELFORMAT_RGBA8888);
+  
   for (i = 0; i < 256; i++) {
     lc->gg.pal->colors[i].r = rgbv[i%16].r;
     lc->gg.pal->colors[i].g = rgbv[i%16].g;
     lc->gg.pal->colors[i].b = rgbv[i%16].b;
     lc->gg.pal->colors[i].a = 0xFF;
+    
+    SDL_Color col = lc->gg.pal->colors[i];
+    lc->gg.pal_cache[i] = SDL_MapRGBA(format, NULL, col.r, col.g, col.b, 255);
   }
   GGupload(lc);
 }
@@ -141,15 +203,21 @@ U0 GGpage_CGA16(LC* lc) {
 U0 GGpage_RGB555LE(LC* lc) {
   U16 i;
   U16 palitro;
+  
+  const SDL_PixelFormatDetails* format = SDL_GetPixelFormatDetails(SDL_PIXELFORMAT_RGBA8888);
+  
   for (i = 0; i < 256; i++) {
     palitro = (lc->mem[0x4A0000+2*i]) + (lc->mem[0x4A0001+2*i] << 8);
     lc->gg.pal->colors[i].r = ((palitro&0b0111110000000000)>>10)*8;
     lc->gg.pal->colors[i].g = ((palitro&0b0000001111100000)>>5)*8;
     lc->gg.pal->colors[i].b = ((palitro&0b0000000000011111))*8;
     lc->gg.pal->colors[i].a = 0xFF;
+    
+    SDL_Color col = lc->gg.pal->colors[i];
+    lc->gg.pal_cache[i] = SDL_MapRGBA(format, NULL, col.r, col.g, col.b, 255);
   }
+  
   GGupload(lc);
-
 }
 
 U0 GGpage_text(LC* lc) {

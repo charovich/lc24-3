@@ -8,6 +8,10 @@
 #include <cpu24/hid.h>
 #endif
 
+static U64 last_profile_time = 0;
+static U64 instructions_executed = 0;
+static U64 interrupts_called = 0;
+
 #define BIOSNOBNK 16
 #define BANKSIZE 65536
 
@@ -137,10 +141,10 @@ U8 JMNE0(LC* lc) {
 // C5 -- Jump to imm24 address if negative flag set
 U8 JL0(LC* lc) {
   if (NF(lc->PS)) {
-    lc->PC = Read24(lc, lc->PC+2);
+    lc->PC = Read24(lc, lc->PC+1);
     RESET_NF(lc->PS);
   }
-  else lc->PC += 5;
+  else lc->PC += 4;
   return 0;
 }
 
@@ -200,6 +204,7 @@ U8 PUSHp(LC* lc) {
 
 // Interrupt calls
 U8 INT(LC* lc, bool ri) {
+  interrupts_called++;
   if (!IF(lc->PS)) {
     lc->PC += 2;
     return 0;
@@ -473,6 +478,30 @@ U8 SUBS0(LC* lc) {  // 6C
 
 U8 SUBG0(LC* lc) {  // 6D
   lc->reg[DI].word -= Read24(lc, lc->PC+1);
+  lc->PC += 4;
+  return 0;
+}
+
+U8 SUBSP0(LC* lc) { // 5E
+  lc->reg[SP].word -= Read24(lc, lc->PC+1);
+  lc->PC += 4;
+  return 0;
+}
+
+U8 SUBBP0(LC* lc) { // 5F
+  lc->reg[BP].word -= Read24(lc, lc->PC+1);
+  lc->PC += 4;
+  return 0;
+}
+
+U8 ADDSP0(LC* lc) { // 6E
+  lc->reg[SP].word += Read24(lc, lc->PC+1);
+  lc->PC += 4;
+  return 0;
+}
+
+U8 ADDBP0(LC* lc) { // 6F
+  lc->reg[BP].word += Read24(lc, lc->PC+1);
   lc->PC += 4;
   return 0;
 }
@@ -1302,10 +1331,10 @@ U8 (*INSTS[256])(LC*) = {
   &LDAA , &LDBA , &LDCA , &LDDA , &LDTA , &LDIA , &UNK  , &UNK  , &UNK  , &CMPpi, &LOOP , &RE   , &RNE  , &UNK  , &HLT  , &CLI  ,
   &POW11, &POW10, &RC   , &RET  , &STI  , &XCHG4, &LODSB, &STORB, &LDDS , &STDS , &LODGB, &STGRB, &LDDG , &STDG , &LODSW, &STORW,
   &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 , &LDr0 ,
-  &LDAZS, &LDBZS, &LDCZS, &LDDZS, &LDTZS, &LDIZS, &UNK  , &UNK  , &ADDA0, &ADDB0, &ADDC0, &ADDD0, &ADDS0, &ADDG0, &STOGB, &STOSB,
-  &LDAZG, &LDBZG, &LDCZG, &LDDZG, &LDTZG, &LDIZG, &UNK  , &UNK  , &SUBA0, &SUBB0, &SUBC0, &SUBD0, &SUBS0, &SUBG0, &STOSW, &UNK  ,
-  &LDAAS, &LDBAS, &LDCAS, &LDDAS, &LDTAS, &LDIAS, &UNK  , &UNK  , &MULA0, &MULB0, &MULC0, &MULD0, &MULS0, &MULG0, &UNK  , &UNK  ,
-  &LDAAG, &LDBAG, &LDCAG, &LDDAG, &LDTAG, &LDIAG, &UNK  , &UNK  , &DIVA0, &DIVB0, &DIVC0, &DIVD0, &DIVS0, &DIVG0, &UNK  , &UNK  ,
+  &LDAZS, &LDBZS, &LDCZS, &LDDZS, &LDTZS, &LDIZS, &UNK  , &UNK  , &ADDA0, &ADDB0, &ADDC0, &ADDD0, &ADDS0, &ADDG0, &ADDSP0, &ADDBP0,
+  &LDAZG, &LDBZG, &LDCZG, &LDDZG, &LDTZG, &LDIZG, &UNK  , &UNK  , &SUBA0, &SUBB0, &SUBC0, &SUBD0, &SUBS0, &SUBG0, &SUBSP0, &SUBBP0,
+  &LDAAS, &LDBAS, &LDCAS, &LDDAS, &LDTAS, &LDIAS, &UNK  , &UNK  , &MULA0, &MULB0, &MULC0, &MULD0, &MULS0, &MULG0, &STOGB, &STOSB,
+  &LDAAG, &LDBAG, &LDCAG, &LDDAG, &LDTAG, &LDIAG, &UNK  , &UNK  , &DIVA0, &DIVB0, &DIVC0, &DIVD0, &DIVS0, &DIVG0, &STOSW, &UNK  ,
   &MOV11, &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &UNK  , &CLC  ,
   &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr , &INXr ,
   &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr , &DEXr ,
@@ -1366,20 +1395,26 @@ U8 Exec(LC* lc, const U32 memsize) {
   #define RECOVERY_SIZE 32
   U32 govnu_recovery[RECOVERY_SIZE];
   U32 ptr = 0;
+  U8 opcode;
+  
   execloop:
-  govnu_recovery[ptr] = lc->PC + (lc->mem[lc->PC]<<24);
-  /*
-  if (lc->mem[lc->PC]==0 || INSTS[lc->mem[lc->PC]] == &UNK) {
+  instructions_executed++;
+  
+  opcode = lc->mem[lc->PC];
+  
+  if (opcode == 0 || INSTS[opcode] == &UNK) {
+    govnu_recovery[ptr] = lc->PC + (opcode << 24);
     printf("\x1b#3\x1b[32m[ UPLOAD MODE ]\x1b[0m\n\x1b#4\x1b[32m[ UPLOAD MODE ]\x1b[0m\n\x1b#3\x1b[31mKernel Panic!\x1b[0m\n\x1b#4\x1b[31mKernel Panic!\x1b[0m\nDDR Vendor: GovnIndustries\n\x1b[33mPanic caller: Exec\nPanic Msg: TRAP\x1b[0m\n\n\x1b[32m");
     for (U8 i = 0; i < RECOVERY_SIZE; i++) {
       printf("%08X ", govnu_recovery[(RECOVERY_SIZE-i+ptr)%RECOVERY_SIZE]);
-      if (i%32==31)printf("\n");
+      if (i%32==31) printf("\n");
     }
   }
-  */
-  ptr=(ptr+1)%RECOVERY_SIZE;
-  exc = (INSTS[lc->mem[lc->PC]])(lc);
+  
+  exc = (INSTS[opcode])(lc);
+  
   if (exc != 0) return lc_errno;
+  
   goto execloop;
   return exc;
 }

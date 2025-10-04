@@ -18,6 +18,13 @@
 #define IX 0x0E
 #define IY 0x0F
 
+#define VERTEX_BUFFER_SIZE 1024
+
+void lc3D_Begin(LC* lc, U8 mode);
+void lc3D_Color4ub(LC* lc, U8 r, U8 g, U8 b, U8 a);
+void lc3D_Vertex3f(LC* lc, float x, float y, float z);
+void lc3D_End(LC* lc);
+
 typedef struct {
     float x, y, z;
     U8 r, g, b, a;
@@ -25,7 +32,7 @@ typedef struct {
 
 
 typedef struct {
-    lc_vertex3d verts[32];
+    lc_vertex3d verts[VERTEX_BUFFER_SIZE];
     U8 mode;
     U8 count;
     struct { U8 r, g, b, a; } current_color;

@@ -217,7 +217,7 @@ U8 ExecD(LC* lc, U8 trapped) {
     // --- Теперь Display List ---
     printf("[Display List] Recording cube...\n");
     int list_id = lc3D_GenLists(1);
-    lc3D_NewList(list_id);
+    lc3D_NewList(list_id, LC3D_COMPILE);
     for (int f = 0; f < 6; f++) {
         lc3D_Begin(lc, LC3D_MODE_QUADS);
         lc3D_Color4ub(lc, colors[f][0], colors[f][1], colors[f][2], 255);
@@ -227,7 +227,7 @@ U8 ExecD(LC* lc, U8 trapped) {
         }
         lc3D_End(lc);
     }
-    lc3D_EndList();
+    lc3D_EndList(lc);
 
     printf("[Display List] Rendering 180 frames. Press key to skip...\n");
     angle = 0; frame = 0;
