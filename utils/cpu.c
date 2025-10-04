@@ -41,6 +41,17 @@ U8 loadBootSector(U8* drive, U8* mem, U32 start, U32 to) {
   return 0;
 }
 
+U8 OLDloadBootSector(U8* drive, U8* mem) {
+  U8* odrive = drive;
+  while (1) {
+    if ((*(drive+0x91EE) == 0xAA) && (*(drive+0x91EF) == 0x55)) break;
+    *(mem++) = *(drive+0x91EE);
+    drive++;
+  }
+  return 0;
+}
+
+
 U8 main(I32 argc, I8** argv) {
   srand(time(NULL));
   new_st;
@@ -117,7 +128,7 @@ U8 main(I32 argc, I8** argv) {
     fread(lc->rom, 1, ROMSIZE, fl);
     fclose(fl);
     // Load the boot sector from $C00000 into RAM ($030000)
-    loadBootSector(lc->rom, lc->mem, 0xC00000, 0x030000);
+    OLDloadBootSector(lc->rom, lc->mem);
     // Setup the pin bit 7 to 1 (drive)
     lc->pin |= 0b10000000;
   }
@@ -135,6 +146,9 @@ U8 main(I32 argc, I8** argv) {
 
   // GPU
   GGinit(lc->mem, &(lc->gg), scale);
+#ifndef EFIKATOR
+  lc3D_Init(lc);
+#endif
   GAinit(&(lc->ga));
 
   int runcode = 0xFF;
